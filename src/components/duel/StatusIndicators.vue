@@ -17,7 +17,8 @@ const props = defineProps({
             typeof player.connected !== 'undefined'
         )
       );
-    }
+    },
+    default: () => [] // Ajout d'une valeur par défaut pour éviter l'undefined
   },
   disconnectCountdown: {
     type: Number,
@@ -30,13 +31,15 @@ const props = defineProps({
 });
 
 const disconnectedPlayer = computed(() => {
+  if (!props.players || props.players.length === 0) return undefined;
+  
   return props.players.find(player => 
     !player.connected && player.id !== props.currentPlayerId
   );
 });
 
 const hasDisconnectedOpponent = computed(() => {
-  return disconnectedPlayer.value !== undefined;
+  return !!disconnectedPlayer.value;
 });
 </script>
 
@@ -64,7 +67,7 @@ const hasDisconnectedOpponent = computed(() => {
   
   <div class="fixed bottom-4 right-4 flex space-x-2 z-40">
     <div 
-      v-for="player in players" 
+      v-for="player in players || []" 
       :key="player.id"
       class="flex items-center px-2 py-1 rounded"
       :class="player.connected ? 'bg-green-900 text-green-100' : 'bg-red-900 text-red-100'"

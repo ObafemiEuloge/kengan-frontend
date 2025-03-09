@@ -6,6 +6,25 @@ import { Swords, Brain, Trophy, TrendingUp, Clock, Zap } from 'lucide-vue-next';
 import BaseTabs from '../ui/BaseTabs.vue';
 import BaseCard from '../ui/BaseCard.vue';
 import type { User } from '../../types/auth/user';
+import { 
+  formatWinRate, 
+  formatAverageScore, 
+  formatWinLossRatio, 
+  formatResponseTime,
+  formatXPProgress
+} from '../../utils/formatters/scoreFormatter';
+import {
+  getDaysDifference,
+  getMonthsDifference,
+  getYearsDifference,
+  isToday,
+  startOfWeek,
+  endOfWeek,
+  startOfMonth,
+  endOfMonth,
+  getWeekNumber,
+  isDateInRange
+} from '../../utils/date/dateCalculator';
 
 // Enregistrer les composants Chart.js nécessaires
 Chart.register(...registerables);
@@ -19,6 +38,7 @@ const props = defineProps<{
 const winRateChartCanvas = ref<HTMLCanvasElement | null>(null);
 const categoryChartCanvas = ref<HTMLCanvasElement | null>(null);
 const performanceChartCanvas = ref<HTMLCanvasElement | null>(null);
+const timeProgressionChartCanvas = ref<HTMLCanvasElement | null>(null);
 const activeTab = ref('overview');
 
 // Onglets disponibles
@@ -26,7 +46,8 @@ const tabs = [
   { id: 'overview', label: 'Aperçu' },
   { id: 'performance', label: 'Performance' },
   { id: 'categories', label: 'Catégories' },
-  { id: 'progression', label: 'Progression' }
+  { id: 'progression', label: 'Progression' },
+  { id: 'time-analysis', label: 'Analyse Temporelle' }
 ];
 
 // Statistiques calculées
@@ -49,9 +70,78 @@ const stats = computed(() => {
   };
 });
 
+// Calculer les statistiques temporelles à partir de l'historique
+const timeStats = computed(() => {
+  // Ici, on utiliserait l'historique réel des duels pour calculer ces statistiques
+  // Pour l'exemple, nous utilisons des valeurs fictives
+  
+  const now = new Date();
+  const registrationDate = new Date(props.user.registrationDate);
+  
+  return {
+    // Utiliser getDaysDifference pour calculer le nombre de jours depuis l'inscription
+    daysSinceRegistration: getDaysDifference(registrationDate, now),
+    
+    // Utiliser getMonthsDifference pour calculer le nombre de mois depuis l'inscription
+    monthsSinceRegistration: getMonthsDifference(registrationDate, now),
+    
+    // Duels par jour en moyenne
+    avgDuelsPerDay: (props.user.stats.totalDuels / getDaysDifference(registrationDate, now)).toFixed(1),
+    
+    // Duels cette semaine (simulé)
+    duelsThisWeek: 12,
+    
+    // Duels ce mois (simulé)
+    duelsThisMonth: 45,
+    
+    // Meilleur jour de la semaine (simulé)
+    bestDayOfWeek: "Samedi",
+    
+    // Meilleure heure de la journée (simulé)
+    bestTimeOfDay: "21:00"
+  };
+});
+
+// Statistiques formatées
+const formattedStats = computed(() => {
+  return {
+    averageScore: formatAverageScore([stats.value.averageScore], 1, 1),
+    winRate: formatWinRate(stats.value.wins, stats.value.totalDuels, { decimalPlaces: 1 }),
+    winLossRatio: formatWinLossRatio(stats.value.wins, stats.value.losses, 2),
+    fastestAnswer: formatResponseTime(stats.value.fastestAnswer * 1000, { useSeconds: true }),
+    xpProgress: formatXPProgress(
+      props.user.xp,
+      0, // XP niveau actuel (supposé à 0 pour simplifier)
+      props.user.xpToNextLevel
+    )
+  };
+});
+
+// Données pour l'historique des duels par période
+const getPerformanceByPeriod = () => {
+  // Cette fonction organiserait l'historique réel des duels par période
+  // Pour l'exemple, nous utilisons des données simulées
+  
+  // Créer un tableau des 6 derniers mois
+  const months = [];
+  for (let i = 5; i >= 0; i--) {
+    const date = new Date();
+    date.setMonth(date.getMonth() - i);
+    months.push(date.toLocaleString('fr-FR', { month: 'short' }));
+  }
+  
+  return {
+    labels: months,
+    winRates: [65, 70, 65, 80, 75, 85],
+    totalDuels: [20, 25, 18, 30, 22, 28]
+  };
+};
+
 // Données pour les graphiques
 const chartData = computed(() => {
   // Ces données seraient normalement calculées à partir de l'historique des duels
+  const performanceData = getPerformanceByPeriod();
+  
   return {
     winLoss: {
       labels: ['Victoires', 'Défaites', 'Égalités'],
@@ -73,14 +163,24 @@ const chartData = computed(() => {
       }]
     },
     performance: {
-      labels: ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin'],
+      labels: performanceData.labels,
       datasets: [{
         label: 'Taux de victoire (%)',
-        data: [65, 70, 65, 80, 75, 85],
+        data: performanceData.winRates,
         borderColor: '#E63946',
         backgroundColor: 'rgba(230, 57, 70, 0.1)',
         tension: 0.4,
         fill: true
+      }]
+    },
+    timeProgression: {
+      labels: ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'],
+      datasets: [{
+        label: 'Duels par jour',
+        data: [5, 7, 3, 6, 8, 12, 9],
+        backgroundColor: '#FFD700',
+        borderColor: '#FFD700',
+        borderWidth: 1
       }]
     }
   };
@@ -113,6 +213,10 @@ onMounted(() => {
 
   if (activeTab.value === 'performance' && performanceChartCanvas.value) {
     initPerformanceChart();
+  }
+  
+  if (activeTab.value === 'time-analysis' && timeProgressionChartCanvas.value) {
+    initTimeProgressionChart();
   }
 });
 
@@ -190,6 +294,43 @@ const initPerformanceChart = () => {
   });
 };
 
+// Fonction pour initialiser le graphique de progression temporelle
+const initTimeProgressionChart = () => {
+  if (!timeProgressionChartCanvas.value) return;
+  
+  new Chart(timeProgressionChartCanvas.value, {
+    type: 'bar',
+    data: chartData.value.timeProgression,
+    options: {
+      responsive: true,
+      scales: {
+        y: {
+          beginAtZero: true,
+          ticks: {
+            color: '#F5F5F5'
+          },
+          grid: {
+            color: 'rgba(255, 255, 255, 0.1)'
+          }
+        },
+        x: {
+          ticks: {
+            color: '#F5F5F5'
+          },
+          grid: {
+            display: false
+          }
+        }
+      },
+      plugins: {
+        legend: {
+          display: false
+        }
+      }
+    }
+  });
+};
+
 // Changer d'onglet
 const handleTabChange = (tabId: string) => {
   activeTab.value = tabId;
@@ -200,6 +341,8 @@ const handleTabChange = (tabId: string) => {
       initCategoryChart();
     } else if (tabId === 'performance') {
       initPerformanceChart();
+    } else if (tabId === 'time-analysis') {
+      initTimeProgressionChart();
     }
   }, 100);
 };
@@ -255,7 +398,7 @@ const handleTabChange = (tabId: string) => {
                   </div>
                   <div>
                     <div class="text-sm text-gray-400">Score Moyen</div>
-                    <div class="text-xl font-bold text-white">{{ stats.averageScore }}/10</div>
+                    <div class="text-xl font-bold text-white">{{ formattedStats.averageScore }}/10</div>
                   </div>
                 </BaseCard>
                 
@@ -275,7 +418,7 @@ const handleTabChange = (tabId: string) => {
                   </div>
                   <div>
                     <div class="text-sm text-gray-400">Réponse la plus rapide</div>
-                    <div class="text-xl font-bold text-white">{{ stats.fastestAnswer }}s</div>
+                    <div class="text-xl font-bold text-white">{{ formattedStats.fastestAnswer }}</div>
                   </div>
                 </BaseCard>
                 
@@ -312,7 +455,7 @@ const handleTabChange = (tabId: string) => {
             
             <BaseCard class="p-4 text-center">
               <div class="text-sm text-gray-400 mb-1">Taux de victoire</div>
-              <div class="text-2xl font-bold text-secondary">{{ stats.winRate }}%</div>
+              <div class="text-2xl font-bold text-secondary">{{ formattedStats.winRate }}</div>
             </BaseCard>
           </div>
         </template>
@@ -346,7 +489,7 @@ const handleTabChange = (tabId: string) => {
               <h3 class="text-lg font-bold text-white mb-4">Progression vers le niveau suivant</h3>
               <div class="mb-2 flex justify-between">
                 <span class="text-gray-400">Niveau {{ user.level }}</span>
-                <span class="text-accent">{{ user.xp }} / {{ user.xpToNextLevel }} XP</span>
+                <span class="text-accent">{{ formattedStats.xpProgress }}</span>
               </div>
               <div class="w-full bg-primary rounded-full h-4">
                 <div 
@@ -391,6 +534,63 @@ const handleTabChange = (tabId: string) => {
               
               <div class="text-sm text-gray-400">
                 <p>Vous devez gagner encore 15 duels pour monter au rang suivant.</p>
+              </div>
+            </BaseCard>
+          </div>
+        </template>
+        
+        <!-- Nouvel onglet Analyse Temporelle -->
+        <template #time-analysis>
+          <div class="h-80">
+            <canvas ref="timeProgressionChartCanvas"></canvas>
+          </div>
+          
+          <div class="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+            <BaseCard class="p-4">
+              <h3 class="text-lg font-bold text-white mb-2">Activité dans le temps</h3>
+              <ul class="space-y-2 text-neutral-light">
+                <li class="flex justify-between">
+                  <span>Jours depuis l'inscription:</span>
+                  <span class="font-bold text-accent">{{ timeStats.daysSinceRegistration }}</span>
+                </li>
+                <li class="flex justify-between">
+                  <span>Mois d'activité:</span>
+                  <span class="font-bold text-accent">{{ timeStats.monthsSinceRegistration }}</span>
+                </li>
+                <li class="flex justify-between">
+                  <span>Duels par jour en moyenne:</span>
+                  <span class="font-bold text-accent">{{ timeStats.avgDuelsPerDay }}</span>
+                </li>
+                <li class="flex justify-between">
+                  <span>Duels cette semaine:</span>
+                  <span class="font-bold text-accent">{{ timeStats.duelsThisWeek }}</span>
+                </li>
+                <li class="flex justify-between">
+                  <span>Duels ce mois:</span>
+                  <span class="font-bold text-accent">{{ timeStats.duelsThisMonth }}</span>
+                </li>
+              </ul>
+            </BaseCard>
+            
+            <BaseCard class="p-4">
+              <h3 class="text-lg font-bold text-white mb-2">Tendances optimales</h3>
+              <ul class="space-y-2 text-neutral-light">
+                <li class="flex justify-between">
+                  <span>Meilleur jour de la semaine:</span>
+                  <span class="font-bold text-accent">{{ timeStats.bestDayOfWeek }}</span>
+                </li>
+                <li class="flex justify-between">
+                  <span>Meilleure heure de jeu:</span>
+                  <span class="font-bold text-accent">{{ timeStats.bestTimeOfDay }}</span>
+                </li>
+              </ul>
+              <div class="mt-4 p-3 bg-primary rounded-lg">
+                <p class="text-sm text-gray-400">
+                  Conseil: Vos statistiques montrent que vous avez tendance à mieux performer
+                  <span class="text-accent">le {{ timeStats.bestDayOfWeek }}</span> aux alentours de
+                  <span class="text-accent">{{ timeStats.bestTimeOfDay }}</span>. Essayez de planifier
+                  vos duels les plus importants à ce moment!
+                </p>
               </div>
             </BaseCard>
           </div>

@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { ref, watch, onBeforeUnmount } from 'vue';
+import { ref, watch, onMounted, onBeforeUnmount } from 'vue';
 import { CheckCircle, XCircle, Timer, Zap } from 'lucide-vue-next';
+import { runPreset } from '../../utils/animations/animationPresets';
 
 const props = defineProps({
   result: {
@@ -26,6 +27,8 @@ const emit = defineEmits(['hide']);
 
 const visible = ref(true);
 const timeoutId = ref<number | null>(null);
+const feedbackRef = ref<HTMLElement | null>(null);
+const animation = ref(null);
 
 const feedbackClass = {
   correct: 'bg-green-900 border-green-500 text-green-100',
@@ -49,25 +52,98 @@ const feedbackMessage = {
 };
 
 const hide = () => {
-  visible.value = false;
-  emit('hide');
+  if (!feedbackRef.value) return;
+  
+  // Utiliser le preset fadeOut pour faire disparaître le feedback
+  animation.value = runPreset('fadeOut', feedbackRef.value, {
+    duration: 0.5,
+    ease: 'power2.in',
+    onComplete: () => {
+      visible.value = false;
+      emit('hide');
+    }
+  });
 };
 
-// Nettoyer le timeout lors du démontage du composant
+// Animer l'apparition du feedback en fonction du résultat
+const animateAppearance = () => {
+  if (!feedbackRef.value) return;
+  
+  // Utiliser les presets adaptés selon le type de feedback
+  switch (props.result) {
+    case 'correct':
+      // Utiliser le preset victoryBurst pour les réponses correctes
+      animation.value = runPreset('victoryBurst', feedbackRef.value);
+      break;
+    case 'incorrect':
+      // Utiliser le preset defeatDrop pour les réponses incorrectes mais adapter pour ne pas disparaître
+      animation.value = runPreset('popIn', feedbackRef.value, {
+        ease: 'back.out(1.7)',
+        scale: 0.7
+      });
+      
+      // Ajouter le shake après l'apparition
+      setTimeout(() => {
+        runPreset('wrongAnswer', feedbackRef.value);
+      }, 300);
+      break;
+    case 'timeout':
+      // Animation spécifique pour le timeout
+      animation.value = runPreset('popIn', feedbackRef.value, {
+        duration: 0.5,
+        ease: 'back.out(1.7)',
+        scale: 0.7
+      });
+      break;
+    case 'blocked':
+      // Animation pour le blocage par l'adversaire
+      animation.value = runPreset('slideFromTop', feedbackRef.value, {
+        duration: 0.5,
+        distance: 30,
+        ease: 'power3.out'
+      });
+      break;
+    default:
+      // Animation par défaut
+      animation.value = runPreset('popIn', feedbackRef.value);
+      break;
+  }
+};
+
+// Nettoyer le timeout et les animations lors du démontage du composant
 onBeforeUnmount(() => {
   if (timeoutId.value !== null) {
     clearTimeout(timeoutId.value);
   }
+  
+  if (animation.value) {
+    animation.value.kill();
+  }
+});
+
+// Lancer l'animation au montage du composant
+onMounted(() => {
+  animateAppearance();
 });
 
 // Configurer le timeout pour cacher automatiquement
 watch(() => props.result, () => {
   visible.value = true;
   
+  // Nettoyer l'ancien timeout s'il existe
   if (timeoutId.value !== null) {
     clearTimeout(timeoutId.value);
   }
   
+  // Arrêter l'ancienne animation si elle existe
+  if (animation.value) {
+    animation.value.kill();
+  }
+  
+  // Relancer l'animation pour le nouveau résultat
+  animateAppearance();
+  
+  // Configurer l'auto-hide si nécessaire
   if (props.autoHide) {
     timeoutId.value = window.setTimeout(() => {
       hide();
@@ -82,7 +158,8 @@ watch(() => props.result, () => {
     class="fixed inset-0 flex items-center justify-center z-50 backdrop-filter backdrop-blur-sm"
   >
     <div 
-      class="p-6 rounded-lg border-2 text-center max-w-md transform scale-90 animate-bounce-in"
+      ref="feedbackRef"
+      class="p-6 rounded-lg border-2 text-center max-w-md"
       :class="feedbackClass[result]"
     >
       <component 
@@ -110,26 +187,3 @@ watch(() => props.result, () => {
     </div>
   </div>
 </template>
-
-<style scoped>
-.animate-bounce-in {
-  animation: bounceIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-}
-
-@keyframes bounceIn {
-  0% {
-    opacity: 0;
-    transform: scale(0.3);
-  }
-  50% {
-    opacity: 1;
-    transform: scale(1.05);
-  }
-  70% {
-    transform: scale(0.9);
-  }
-  100% {
-    transform: scale(1);
-  }
-}
-</style>

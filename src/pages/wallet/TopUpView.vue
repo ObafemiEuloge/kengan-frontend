@@ -4,7 +4,9 @@ import { useRouter } from 'vue-router';
 import DashboardLayout from '../../layouts/DashboardLayout.vue';
 import TopUpRequestForm from '../../components/wallet/TopUpRequestForm.vue';
 import BaseAlert from '../../components/ui/BaseAlert.vue';
+import BaseSpinner from '../../components/ui/BaseSpinner.vue';
 import { useWalletStore } from '../../store/wallet/walletStore';
+import { validateTopUpForm } from '../../utils/validators/paymentValidators';
 
 // Router
 const router = useRouter();
@@ -15,18 +17,32 @@ const walletStore = useWalletStore();
 // État
 const loading = ref(true);
 const error = ref('');
+const success = ref('');
 
 // Données
 const balance = computed(() => walletStore.balance);
 
 // Gérer la soumission du formulaire
 const handleSubmit = async (paymentData: any) => {
+  // Valider le formulaire avant la soumission
+  const validationErrors = validateTopUpForm(paymentData);
+  
+  if (Object.keys(validationErrors).length > 0) {
+    // Afficher la première erreur de validation
+    const firstError = Object.values(validationErrors)[0];
+    error.value = firstError;
+    return;
+  }
+  
   try {
     await walletStore.topUp(
       paymentData.amount,
-      paymentData.method,
+      paymentData.paymentMethod,
       paymentData
     );
+    
+    // Afficher message de succès
+    success.value = `Votre demande de rechargement de ${paymentData.amount.toLocaleString()} FCFA a été initiée avec succès.`;
     
     // Redirection automatique après un rechargement réussi
     setTimeout(() => {
@@ -68,23 +84,40 @@ onMounted(async () => {
         <p class="text-gray-400">Choisissez un montant et une méthode de paiement pour recharger votre solde</p>
       </div>
 
-      <!-- Alertes -->
-      <BaseAlert
-        v-if="error"
-        type="error"
-        dismissible
-        class="mb-6"
-        @close="error = ''"
-      >
-        {{ error }}
-      </BaseAlert>
+      <!-- Indicateur de chargement -->
+      <div v-if="loading" class="flex justify-center py-12">
+        <BaseSpinner size="lg" color="secondary" />
+      </div>
 
-      <!-- Formulaire de rechargement -->
-      <div class="max-w-3xl mx-auto">
-        <TopUpRequestForm
-          @submit="handleSubmit"
-          @cancel="handleCancel"
-        />
+      <div v-else>
+        <!-- Alertes -->
+        <BaseAlert
+          v-if="error"
+          type="error"
+          dismissible
+          class="mb-6"
+          @close="error = ''"
+        >
+          {{ error }}
+        </BaseAlert>
+
+        <BaseAlert
+          v-if="success"
+          type="success"
+          dismissible
+          class="mb-6"
+          @close="success = ''"
+        >
+          {{ success }}
+        </BaseAlert>
+
+        <!-- Formulaire de rechargement -->
+        <div class="max-w-3xl mx-auto">
+          <TopUpRequestForm
+            @submit="handleSubmit"
+            @cancel="handleCancel"
+          />
+        </div>
       </div>
     </div>
   </DashboardLayout>

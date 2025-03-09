@@ -4,6 +4,7 @@ import { ref, onMounted, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from '../../store/auth/authStore';
 import { useDuelStore } from '../../store/duel/duelStore';
+import { formatFCFA } from '../../utils/formatters/currencyFormatter';
 import DashboardLayout from '../../layouts/DashboardLayout.vue';
 import BaseCard from '../../components/ui/BaseCard.vue';
 import BaseButton from '../../components/ui/BaseButton.vue';
@@ -130,7 +131,7 @@ const getDuelResultText = (duel: any, userId: number) => {
           <BaseCard class="lg:col-span-1">
             <div class="text-center">
               <h2 class="text-xl font-heading text-white mb-2">Ton trésor</h2>
-              <div class="text-4xl font-bold text-accent mb-4">{{ user?.balance?.toLocaleString() || 0 }} FCFA</div>
+              <div class="text-4xl font-bold text-accent mb-4">{{ formatFCFA(user?.balance || 0) }}</div>
               <div class="flex justify-center space-x-3">
                 <BaseButton 
                   variant="primary" 
@@ -255,7 +256,7 @@ const getDuelResultText = (duel: any, userId: number) => {
                       </div>
                     </td>
                     <td class="py-3 px-3 text-gray-300">{{ duel.category }}</td>
-                    <td class="py-3 px-3 text-center text-accent font-bold">{{ duel.stake.toLocaleString() }} FCFA</td>
+                    <td class="py-3 px-3 text-center text-accent font-bold">{{ formatFCFA(duel.stake) }}</td>
                     <td class="py-3 px-3 text-center">
                       <span :class="getDuelResultClass(duel, user?.userId || 0)" class="font-bold">
                         {{ getDuelResultText(duel, user?.userId || 0) }}

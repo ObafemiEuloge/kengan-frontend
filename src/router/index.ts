@@ -125,7 +125,7 @@ const router = createRouter({
       path: '/duels/create',
       name: 'create-duel',
       component: () => import('../pages/duel/CreateDuelView.vue'),
-      // meta: { requiresAuth: false }
+      meta: { requiresAuth: false }
     },
     {
       path: '/duels/:id',
@@ -179,6 +179,69 @@ const router = createRouter({
       path: '/demo/duel',
       name: 'demo-duel',
       component: () => import('../pages/demo/DemoDuelView.vue')
+    },
+    {
+      path: '/admin',
+      component: () => import('../layouts/AdminLayout.vue'),
+      meta: { requiresAdmin: true },
+      children: [
+        {
+          path: '',
+          name: 'admin-dashboard',
+          component: () => import('../pages/admin/AdminDashboardView.vue')
+        },
+        {
+          path: 'users',
+          name: 'admin-users',
+          component: () => import('../pages/admin/UsersManagementView.vue')
+        },
+        {
+          path: 'transactions',
+          name: 'admin-transactions',
+          component: () => import('../pages/admin/TransactionsManagementView.vue')
+        },
+        {
+          path: 'duels',
+          name: 'admin-duels',
+          component: () => import('../pages/admin/DuelsManagementView.vue')
+        },
+        {
+          path: 'questions',
+          name: 'admin-questions',
+          component: () => import('../pages/admin/QuestionsManagementView.vue')
+        },
+        {
+          path: 'questions/create',
+          name: 'admin-questions-create',
+          component: () => import('../pages/admin/QuestionEditView.vue')
+        },
+        {
+          path: 'questions/edit/:id',
+          name: 'admin-questions-edit',
+          component: () => import('../pages/admin/QuestionCreateView.vue')
+        },
+        {
+          path: 'reports',
+          name: 'admin-reports',
+          component: () => import('../pages/admin/ReportsView.vue')
+        },
+        {
+          path: 'settings',
+          name: 'admin-settings',
+          component: () => import('../pages/admin/SystemSettingsView.vue')
+        },
+        {
+          path: 'logs',
+          name: 'admin-logs',
+          component: () => import('../pages/admin/AdminLogsView.vue')
+        }
+      ]
+    },
+   
+    {
+      path: '/admin/login',
+      name: 'admin-login',
+      component: () => import('../pages/admin/AdminLoginView.vue')
     },
     // Route 404 pour les pages non trouvées
     {

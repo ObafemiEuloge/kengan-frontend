@@ -7,6 +7,7 @@ import BaseAvatar from '../ui/BaseAvatar.vue';
 import BaseBadge from '../ui/BaseBadge.vue';
 import BaseButton from '../ui/BaseButton.vue';
 import type { Duel } from '../../types/duel/duel';
+import { formatDate, formatRelativeTime } from '../../utils/formatters/dateFormatter';
 
 const props = defineProps<{
   duels: Duel[];
@@ -192,6 +193,26 @@ const getOpponent = (duel: Duel) => {
   };
 };
 
+// Formater la date
+const formatDuelDate = (dateString: string): string => {
+  // Si la date est dans les 24 dernières heures, utiliser le format relatif
+  const now = new Date();
+  const date = new Date(dateString);
+  const diff = now.getTime() - date.getTime();
+  
+  if (diff < 24 * 60 * 60 * 1000) {
+    return formatRelativeTime(date);
+  }
+  
+  // Sinon utiliser le format court
+  return formatDate(date, {
+    locale: 'fr-FR',
+    includeTime: false,
+    dayFormat: 'numeric',
+    monthFormat: 'short'
+  });
+};
+
 // Voir les détails d'un duel
 const viewDuelDetails = (duelId: number) => {
   router.push(`/duels/results/${duelId}`);
@@ -373,7 +394,9 @@ const resetFilters = () => {
                 <td class="py-4 px-4">
                   <div class="flex items-center text-gray-400">
                     <Calendar size="16" class="mr-1" />
-                    {{ new Date(duel.createdAt).toLocaleDateString() }}
+                    <span :title="formatDate(duel.createdAt, { includeTime: true })">
+                      {{ formatDuelDate(duel.createdAt) }}
+                    </span>
                   </div>
                 </td>
                 

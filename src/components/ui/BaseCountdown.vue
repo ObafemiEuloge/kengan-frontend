@@ -1,5 +1,7 @@
+// src/components/ui/BaseCountdown.vue
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount, computed } from 'vue';
+import { secondsToTimeString } from '../../utils/date/timeConverter';
 
 const props = defineProps({
   seconds: {
@@ -27,6 +29,14 @@ const props = defineProps({
   autoStart: {
     type: Boolean,
     default: true
+  },
+  includeHours: {
+    type: Boolean,
+    default: false
+  },
+  includeTenths: {
+    type: Boolean,
+    default: false
   }
 });
 
@@ -40,10 +50,9 @@ const percentage = computed(() => {
   return (timeLeft.value / props.seconds) * 100;
 });
 
+// Utiliser la fonction secondsToTimeString du module timeConverter
 const formattedTime = computed(() => {
-  const minutes = Math.floor(timeLeft.value / 60);
-  const seconds = timeLeft.value % 60;
-  return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+  return secondsToTimeString(timeLeft.value, props.includeHours, props.includeTenths);
 });
 
 const start = () => {

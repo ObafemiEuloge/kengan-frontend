@@ -5,6 +5,15 @@ import { Calendar, Award, Clock, Gift, ChevronDown, ChevronUp } from 'lucide-vue
 import BaseCard from '../ui/BaseCard.vue';
 import BaseProgressBar from '../ui/BaseProgressBar.vue';
 import BaseButton from '../ui/BaseButton.vue';
+import { 
+  getDaysDifference, 
+  isDateInRange, 
+  isPast, 
+  isFuture, 
+  getMonthsDifference,
+  formatDate,
+  formatRelativeTime
+} from '../../utils/date/dateCalculator';
 
 const props = defineProps({
   seasonNumber: {
@@ -30,10 +39,53 @@ const props = defineProps({
 });
 
 // Format de date (jour mois année)
-const formatDate = (dateString: string) => {
+const formatDisplayDate = (dateString: string) => {
   const date = new Date(dateString);
   return date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
 };
+
+// Vérifier si la saison est en cours, terminée ou à venir
+const seasonStatus = computed(() => {
+  const now = new Date(props.currentDate);
+  const start = new Date(props.seasonStart);
+  const end = new Date(props.seasonEnd);
+  
+  if (isPast(end, now)) {
+    return 'completed';
+  } else if (isFuture(start, now)) {
+    return 'upcoming';
+  } else {
+    return 'active';
+  }
+});
+
+// Formater le statut de la saison
+const seasonStatusText = computed(() => {
+  switch (seasonStatus.value) {
+    case 'completed':
+      return 'Saison terminée';
+    case 'upcoming':
+      return 'Saison à venir';
+    case 'active':
+      return 'Saison en cours';
+    default:
+      return 'Statut inconnu';
+  }
+});
+
+// Obtenir la classe de couleur du statut
+const seasonStatusClass = computed(() => {
+  switch (seasonStatus.value) {
+    case 'completed':
+      return 'text-gray-400';
+    case 'upcoming':
+      return 'text-accent';
+    case 'active':
+      return 'text-secondary';
+    default:
+      return 'text-white';
+  }
+});
 
 // Calcul du pourcentage de progression de la saison
 const seasonProgress = computed(() => {
@@ -51,13 +103,43 @@ const seasonProgress = computed(() => {
 
 // Calcul du nombre de jours restants
 const daysRemaining = computed(() => {
-  const end = new Date(props.seasonEnd).getTime();
-  const current = new Date(props.currentDate).getTime();
+  if (seasonStatus.value === 'completed') return 0;
+  if (seasonStatus.value === 'upcoming') {
+    // Jours avant le début de la saison
+    return getDaysDifference(props.currentDate, props.seasonStart);
+  }
   
-  if (current >= end) return 0;
+  // Jours avant la fin de la saison
+  return getDaysDifference(props.currentDate, props.seasonEnd);
+});
+
+// Message pour les jours restants
+const daysRemainingMessage = computed(() => {
+  if (seasonStatus.value === 'completed') {
+    return "Saison terminée";
+  }
   
-  const remainingMs = end - current;
-  return Math.ceil(remainingMs / (1000 * 60 * 60 * 24));
+  if (seasonStatus.value === 'upcoming') {
+    if (daysRemaining.value <= 0) {
+      return "Commence aujourd'hui!";
+    }
+    return `Commence dans ${daysRemaining.value} ${daysRemaining.value > 1 ? 'jours' : 'jour'}`;
+  }
+  
+  if (daysRemaining.value <= 0) {
+    return "Se termine aujourd'hui!";
+  }
+  return `${daysRemaining.value} ${daysRemaining.value > 1 ? 'jours restants' : 'jour restant'}`;
+});
+
+// Durée totale de la saison en jours
+const totalSeasonDays = computed(() => {
+  return getDaysDifference(props.seasonStart, props.seasonEnd);
+});
+
+// Durée totale de la saison en mois (approximative)
+const totalSeasonMonths = computed(() => {
+  return getMonthsDifference(props.seasonStart, props.seasonEnd);
 });
 
 // État pour afficher/masquer les récompenses
@@ -74,10 +156,16 @@ const toggleRewards = () => {
     <div class="mb-6">
       <h3 class="font-heading text-xl text-white mb-1 flex items-center">
         <Calendar class="text-secondary mr-2 h-5 w-5" />
-        Saison {{ seasonNumber }} en cours
+        Saison {{ seasonNumber }} 
+        <span :class="seasonStatusClass" class="ml-2 text-sm font-normal">
+          ({{ seasonStatusText }})
+        </span>
       </h3>
       <p class="text-sm text-gray-400">
-        {{ formatDate(seasonStart) }} - {{ formatDate(seasonEnd) }}
+        {{ formatDisplayDate(seasonStart) }} - {{ formatDisplayDate(seasonEnd) }}
+        <span class="text-xs ml-2">
+          ({{ totalSeasonDays }} jours)
+        </span>
       </p>
     </div>
     
@@ -96,12 +184,14 @@ const toggleRewards = () => {
         height="md" 
         color="secondary"
         :striped="true"
-        :animated="true"
+        :animated="seasonStatus === 'active'"
       />
       <div class="mt-2 text-sm text-right">
-        <span class="text-white font-bold">{{ daysRemaining }}</span>
-        <span class="text-gray-400">
-          {{ daysRemaining > 1 ? ' jours restants' : ' jour restant' }}
+        <span 
+          class="text-white font-bold"
+          :class="{ 'text-secondary': daysRemaining < 7 && seasonStatus === 'active' }"
+        >
+          {{ daysRemainingMessage }}
         </span>
       </div>
     </div>
@@ -143,5 +233,38 @@ const toggleRewards = () => {
     >
       Consulter le règlement complet
     </BaseButton>
+    
+    <!-- Ajout d'une section sur l'historique des saisons -->
+    <div class="mt-6 pt-6 border-t border-gray-800">
+      <h4 class="font-heading text-lg text-white mb-4">
+        Statistiques de saison
+      </h4>
+      
+      <ul class="space-y-2 text-neutral-light text-sm">
+        <li class="flex justify-between">
+          <span>Nombre de participants:</span>
+          <span class="font-bold text-accent">2458</span>
+        </li>
+        <li class="flex justify-between">
+          <span>Duels disputés:</span>
+          <span class="font-bold text-accent">15842</span>
+        </li>
+        <li class="flex justify-between">
+          <span>Montant total distribué:</span>
+          <span class="font-bold text-accent">8.5M FCFA</span>
+        </li>
+        <li class="flex justify-between">
+          <span>Récompenses restantes:</span>
+          <span class="font-bold text-accent">12.2M FCFA</span>
+        </li>
+      </ul>
+      
+      <div class="mt-4 p-3 bg-primary rounded-lg">
+        <p class="text-xs text-gray-400">
+          Les récompenses de saison sont distribuées à la fin de chaque saison. 
+          La prochaine distribution aura lieu le {{ formatDisplayDate(seasonEnd) }}.
+        </p>
+      </div>
+    </div>
   </BaseCard>
 </template>

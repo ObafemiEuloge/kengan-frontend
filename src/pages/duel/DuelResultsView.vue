@@ -4,6 +4,17 @@ import { ref, computed, onMounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useDuelStore } from '../../store/duel/duelStore';
 import { useAuthStore } from '../../store/auth/authStore';
+import { formatFCFA } from '../../utils/formatters/currencyFormatter';
+import { formatDuelScore, getScoreColorClass, getScoreGrade } from '../../utils/formatters/scoreFormatter';
+import { 
+  getDifference, 
+  formatResponseTime,
+  isDateInRange,
+  isSameDay,
+  isToday,
+  startOfDay
+} from '../../utils/date/dateCalculator';
+
 import DashboardLayout from '../../layouts/DashboardLayout.vue';
 import ResultHeader from '../../components/duel/ResultHeader.vue';
 import ScoreboardPanel from '../../components/duel/ScoreboardPanel.vue';
@@ -26,6 +37,9 @@ const isLoading = ref(true);
 const error = ref('');
 const showConfetti = ref(false);
 const animationsComplete = ref(false);
+const totalQuestions = ref(10); // On suppose 10 questions par duel, à ajuster selon la logique réelle
+const duelStartTime = ref<Date | null>(null);
+const duelEndTime = ref<Date | null>(null);
 
 // Computed properties
 const duelId = computed(() => Number(route.params.id));
@@ -57,6 +71,33 @@ const opponentScore = computed(() => opponentResult.value?.score || 0);
 const earnings = computed(() => playerResult.value?.earnings || 0);
 const commission = computed(() => duelResult.value?.commission || 0);
 
+// Formater les scores avec les fonctions de scoreFormatter
+const formattedPlayerScore = computed(() => {
+  return formatDuelScore(playerScore.value, totalQuestions.value, {
+    showPercentage: false
+  });
+});
+
+const formattedOpponentScore = computed(() => {
+  return formatDuelScore(opponentScore.value, totalQuestions.value, {
+    showPercentage: false
+  });
+});
+
+// Obtenir des classes de couleur pour les scores
+const playerScoreClass = computed(() => {
+  return getScoreColorClass(playerScore.value, totalQuestions.value);
+});
+
+const opponentScoreClass = computed(() => {
+  return getScoreColorClass(opponentScore.value, totalQuestions.value);
+});
+
+// Obtenir les grades pour les performances
+const playerGrade = computed(() => {
+  return getScoreGrade(playerScore.value, totalQuestions.value);
+});
+
 const resultTitle = computed(() => {
   if (isDraw.value) return 'ÉGALITÉ!';
   return isWinner.value ? 'VICTOIRE!' : 'DÉFAITE!';
@@ -67,6 +108,54 @@ const resultColor = computed(() => {
   return isWinner.value ? 'text-green-500' : 'text-red-500';
 });
 
+// Calculer la durée totale du duel en utilisant getDifference
+const duelDuration = computed(() => {
+  if (!duelStartTime.value || !duelEndTime.value) return null;
+  
+  // Calculer la durée en minutes
+  const durationMinutes = getDifference(duelStartTime.value, duelEndTime.value, 'minutes');
+  
+  // Formatage de la durée en minutes et secondes
+  const minutes = Math.floor(durationMinutes);
+  const seconds = Math.round((durationMinutes - minutes) * 60);
+  
+  return {
+    minutes,
+    seconds,
+    total: durationMinutes,
+    formatted: `${minutes}m ${seconds}s`
+  };
+});
+
+// Vérifier si le duel était aujourd'hui
+const duelWasToday = computed(() => {
+  if (!duelEndTime.value) return false;
+  return isToday(duelEndTime.value);
+});
+
+// Vérifier si le duel était court, normal ou long
+const duelLengthCategory = computed(() => {
+  if (!duelDuration.value) return 'normal';
+  
+  if (duelDuration.value.total < 2) return 'très rapide';
+  if (duelDuration.value.total < 5) return 'rapide';
+  if (duelDuration.value.total > 15) return 'prolongé';
+  return 'normal';
+});
+
+// Calculer la vitesse moyenne de réponse
+const averageAnswerSpeed = computed(() => {
+  if (!duelDuration.value || !totalQuestions.value) return null;
+  
+  // Calculer le temps moyen par question en secondes
+  const avgTimePerQuestion = (duelDuration.value.total * 60) / totalQuestions.value;
+  
+  return {
+    seconds: avgTimePerQuestion,
+    formatted: `${avgTimePerQuestion.toFixed(1)}s`
+  };
+});
+
 // Methods
 const loadDuelResults = async () => {
   isLoading.value = true;
@@ -74,6 +163,13 @@ const loadDuelResults = async () => {
   
   try {
     await duelStore.getDuelResults(duelId.value);
+    
+    // Supposons qu'il y a des timestamps de début et de fin dans les résultats
+    // Sinon, nous pouvons les simuler pour l'exemple
+    if (duelResult.value) {
+      duelStartTime.value = new Date(duelResult.value.startTime || Date.now() - 7 * 60000); // 7 minutes ago as fallback
+      duelEndTime.value = new Date(duelResult.value.endTime || Date.now()); // now as fallback
+    }
     
     if (isWinner.value) {
       showConfetti.value = true;
@@ -118,7 +214,8 @@ const animateResults = () => {
       // Update text content with formatted number
       this.targets().forEach(target => {
         const value = Math.round(gsap.getProperty(target, 'textContent'));
-        target.textContent = new Intl.NumberFormat('fr-FR').format(value);
+        // Using the imported formatFCFA function
+        target.textContent = formatFCFA(value, { displayCurrency: false }); // Just the number with separators
       });
     },
     onComplete: () => {
@@ -187,7 +284,19 @@ onMounted(async () => {
           :result-color="resultColor"
           :is-winner="isWinner"
           :is-draw="isDraw"
+          :player-grade="playerGrade"
         />
+        
+        <!-- Durée du duel -->
+        <div v-if="duelDuration" class="mb-4 text-center">
+          <p class="text-neutral-light">
+            <span class="font-bold">Durée du duel:</span> 
+            <span class="text-accent">{{ duelDuration.formatted }}</span>
+            <span class="text-xs ml-2 text-gray-400">
+              (Duel {{ duelLengthCategory }})
+            </span>
+          </p>
+        </div>
         
         <!-- Scoreboard panel -->
         <div class="bg-primary-light rounded-lg border border-gray-800 p-6 mb-8">
@@ -198,7 +307,23 @@ onMounted(async () => {
             :opponent-score="opponentScore"
             :player-result="playerResult"
             :opponent-result="opponentResult"
+            :total-questions="totalQuestions"
+            :formatted-player-score="formattedPlayerScore"
+            :formatted-opponent-score="formattedOpponentScore"
+            :player-score-class="playerScoreClass"
+            :opponent-score-class="opponentScoreClass"
           />
+          
+          <!-- Vitesse moyenne de réponse -->
+          <div v-if="averageAnswerSpeed" class="mt-6 flex justify-center">
+            <div class="bg-primary px-4 py-2 rounded-lg">
+              <p class="text-sm text-neutral-light">
+                <span class="font-bold">Vitesse moyenne de réponse:</span> 
+                <span class="text-secondary font-bold">{{ averageAnswerSpeed.formatted }}</span>
+                <span class="text-xs ml-2 text-gray-400">par question</span>
+              </p>
+            </div>
+          </div>
         </div>
         
         <!-- Financial results -->
@@ -221,6 +346,9 @@ onMounted(async () => {
             :duel-id="duelId"
             :player-result="playerResult"
             :opponent-result="opponentResult"
+            :total-questions="totalQuestions"
+            :duel-duration="duelDuration?.formatted"
+            :average-answer-speed="averageAnswerSpeed?.formatted"
           />
         </div>
         

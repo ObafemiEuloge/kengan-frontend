@@ -1,3 +1,4 @@
+// src/socket/duelSocket.ts
 import { io, Socket } from 'socket.io-client';
 import type { Duel, DuelResult } from '../types/duel/duel';
 import type { Question } from '../types/duel/question';
@@ -11,6 +12,7 @@ class DuelSocketManager {
     duelStatusUpdate: [] as ((duel: Duel) => void)[],
     newQuestion: [] as ((question: Question) => void)[],
     playerStatusUpdate: [] as ((playerId: number, status: string) => void)[],
+    playerAnswered: [] as ((playerId: number, isCorrect: boolean) => void)[], // Ajouté
     duelEnd: [] as ((result: DuelResult) => void)[]
   };
 
@@ -80,6 +82,13 @@ class DuelSocketManager {
       );
     });
 
+    // Événement quand un joueur répond à une question
+    this.socket.on('playerAnswered', (data: { playerId: number, isCorrect: boolean }) => {
+      this.callbacks.playerAnswered.forEach(callback => 
+        callback(data.playerId, data.isCorrect)
+      );
+    });
+
     // Événement de fin de duel
     this.socket.on('duelEnd', (data: DuelResult) => {
       this.callbacks.duelEnd.forEach(callback => callback(data));
@@ -116,6 +125,11 @@ class DuelSocketManager {
   // Écouter les mises à jour de statut des joueurs
   onPlayerStatusUpdate(callback: (playerId: number, status: string) => void): void {
     this.callbacks.playerStatusUpdate.push(callback);
+  }
+
+  // Écouter quand un joueur répond
+  onPlayerAnswered(callback: (playerId: number, isCorrect: boolean) => void): void {
+    this.callbacks.playerAnswered.push(callback);
   }
 
   // Écouter la fin du duel

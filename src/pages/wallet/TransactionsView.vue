@@ -9,6 +9,7 @@ import { useTransactionsStore } from '../../store/wallet/transactionsStore';
 import { Download, Printer } from 'lucide-vue-next';
 import BaseButton from '../../components/ui/BaseButton.vue';
 import type { Transaction } from '../../types/wallet/transaction';
+import { formatDateTime, formatRelativeTime } from '../../utils/formatters/dateFormatter';
 
 // Router et Route
 const router = useRouter();
@@ -87,14 +88,7 @@ const handlePageChange = (page: number) => {
 
 // Formater la date
 const formatDate = (dateString: string) => {
-  const date = new Date(dateString);
-  return date.toLocaleDateString('fr-FR', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit'
-  });
+  return formatDateTime(dateString, { separator: '/', includeSeconds: false });
 };
 
 // Formater le montant
@@ -192,7 +186,7 @@ const getTransactionTitle = (type: string) => {
           <div class="text-center mb-8">
             <img src="/images/logo.webp" alt="KENGAN" class="h-12 mx-auto mb-4" />
             <h2 class="text-2xl font-heading text-white">{{ getTransactionTitle(selectedTransaction.type) }}</h2>
-            <p class="text-sm text-gray-400">Généré le {{ new Date().toLocaleDateString('fr-FR') }}</p>
+            <p class="text-sm text-gray-400">Généré le {{ formatDate(new Date().toISOString()) }}</p>
           </div>
           
           <!-- Détails de la transaction -->

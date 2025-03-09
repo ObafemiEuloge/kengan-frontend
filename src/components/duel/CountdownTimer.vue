@@ -1,103 +1,182 @@
+// src/components/duel/CountdownTimer.vue
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount, computed } from 'vue';
+import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
+import { useSound } from '../../composables/duel/useSound';
+import { runPreset } from '../../utils/animations/animationPresets';
+import { formatElapsedTime, secondsToTimeString } from '../../utils/date/timeConverter';
 
 const props = defineProps({
   seconds: {
     type: Number,
-    required: true,
-    validator: (value: number) => value > 0
+    required: true
   },
   size: {
     type: String,
     default: 'md',
-    validator: (value: string) => ['sm', 'md', 'lg'].includes(value)
+    validator: (value: string) => {
+      return ['sm', 'md', 'lg', 'xl'].includes(value);
+    }
   },
-  variant: {
+  color: {
     type: String,
-    default: 'circle',
-    validator: (value: string) => ['circle', 'bar'].includes(value)
+    default: 'secondary',
+    validator: (value: string) => {
+      return ['secondary', 'accent', 'success', 'danger', 'warning', 'info'].includes(value);
+    }
   },
-  disabled: {
+  animated: {
     type: Boolean,
-    default: false
+    default: true
   },
   autoStart: {
     type: Boolean,
     default: true
+  },
+  warningThreshold: {
+    type: Number,
+    default: 5  // secondes
+  },
+  includeHours: {
+    type: Boolean,
+    default: false
   }
 });
 
-const emit = defineEmits(['tick', 'finish']);
+const emit = defineEmits(['tick', 'finish', 'warning']);
 
-const timeLeft = ref(props.seconds);
+// État local
+const timeLeft = ref<number>(props.seconds);
 const intervalId = ref<number | null>(null);
-const isRunning = ref(false);
+const isRunning = ref<boolean>(false);
+const isPaused = ref<boolean>(false);
+const isWarning = ref<boolean>(false);
+const timerRef = ref(null);
+const pulseAnimation = ref(null);
 
+// Effets sonores
+const { playSound } = useSound();
+
+// Calcul du pourcentage restant
 const percentage = computed(() => {
   return (timeLeft.value / props.seconds) * 100;
 });
 
+// Formatage du temps avec timeConverter
 const formattedTime = computed(() => {
-  const minutes = Math.floor(timeLeft.value / 60);
-  const seconds = timeLeft.value % 60;
-  
-  if (minutes > 0) {
-    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
-  }
-  
-  return seconds.toString();
+  return secondsToTimeString(timeLeft.value, props.includeHours, false);
 });
 
-const colorClass = computed(() => {
-  if (timeLeft.value > props.seconds * 0.6) {
-    return 'text-green-500';
-  }
-  if (timeLeft.value > props.seconds * 0.3) {
-    return 'text-yellow-500';
-  }
-  return 'text-red-500';
-});
-
-const bgColorClass = computed(() => {
-  if (timeLeft.value > props.seconds * 0.6) {
-    return 'stroke-green-500';
-  }
-  if (timeLeft.value > props.seconds * 0.3) {
-    return 'stroke-yellow-500';
-  }
-  return 'stroke-red-500';
-});
-
-const sizeClass = computed(() => {
-  const sizes = {
-    sm: 'w-6 h-6 text-xs',
-    md: 'w-10 h-10 text-sm',
-    lg: 'w-16 h-16 text-lg'
+// Classes de taille
+const sizeClasses = computed(() => {
+  const classes = {
+    sm: 'text-sm',
+    md: 'text-base',
+    lg: 'text-lg',
+    xl: 'text-2xl'
   };
-  return sizes[props.size];
+  
+  return classes[props.size] || classes.md;
 });
 
+// Classes de couleur
+const colorClasses = computed(() => {
+  const colorMap = {
+    secondary: 'text-secondary',
+    accent: 'text-accent',
+    success: 'text-green-500',
+    danger: 'text-red-500',
+    warning: 'text-yellow-500',
+    info: 'text-blue-500'
+  };
+  
+  return colorMap[props.color] || colorMap.secondary;
+});
+
+// Classes pour la barre de progression
+const progressColorClasses = computed(() => {
+  if (isWarning.value) return 'bg-red-500';
+  
+  const colorMap = {
+    secondary: 'bg-secondary',
+    accent: 'bg-accent',
+    success: 'bg-green-500',
+    danger: 'bg-red-500',
+    warning: 'bg-yellow-500',
+    info: 'bg-blue-500'
+  };
+  
+  return colorMap[props.color] || colorMap.secondary;
+});
+
+// Démarrer le compte à rebours
 const start = () => {
-  if (!isRunning.value && !props.disabled) {
-    isRunning.value = true;
-    tick();
-    intervalId.value = window.setInterval(tick, 1000);
-  }
+  if (isRunning.value || timeLeft.value <= 0) return;
+  
+  isRunning.value = true;
+  isPaused.value = false;
+  
+  // Déclencher le premier tick immédiatement
+  tick();
+  
+  // Démarrer l'intervalle
+  intervalId.value = window.setInterval(tick, 1000);
 };
 
+// Mettre en pause le compte à rebours
 const pause = () => {
-  if (isRunning.value && intervalId.value !== null) {
-    isRunning.value = false;
-    clearInterval(intervalId.value);
-    intervalId.value = null;
+  if (!isRunning.value || intervalId.value === null) return;
+  
+  clearInterval(intervalId.value);
+  intervalId.value = null;
+  
+  isRunning.value = false;
+  isPaused.value = true;
+  
+  // Arrêter l'animation pulsante si elle est active
+  if (pulseAnimation.value) {
+    pulseAnimation.value.kill();
+    pulseAnimation.value = null;
   }
 };
 
+// Réinitialiser le compte à rebours
 const reset = () => {
   pause();
   timeLeft.value = props.seconds;
+  isWarning.value = false;
+  
+  // Arrêter l'animation pulsante si elle est active
+  if (pulseAnimation.value) {
+    pulseAnimation.value.kill();
+    pulseAnimation.value = null;
+  }
 };
 
+// Définir une nouvelle valeur pour le compte à rebours
+const setValue = (value: number) => {
+  if (value < 0) value = 0;
+  if (value > props.seconds) value = props.seconds;
+  
+  timeLeft.value = value;
+  
+  // Vérifier si on entre en mode d'avertissement
+  checkWarningThreshold();
+};
+
+// Vérifier si on atteint le seuil d'avertissement
+const checkWarningThreshold = () => {
+  if (timeLeft.value <= props.warningThreshold && !isWarning.value) {
+    isWarning.value = true;
+    emit('warning', timeLeft.value);
+    
+    // Démarrer l'animation pulsante avec le preset countdownPulse
+    if (timerRef.value && !pulseAnimation.value) {
+      pulseAnimation.value = runPreset('countdownPulse', timerRef.value);
+    }
+  }
+};
+
+// Fonction appelée à chaque seconde
 const tick = () => {
   if (timeLeft.value <= 0) {
     finish();
@@ -106,17 +185,58 @@ const tick = () => {
   
   timeLeft.value -= 1;
   emit('tick', timeLeft.value);
+  
+  // Vérifier si on atteint le seuil d'avertissement
+  checkWarningThreshold();
+  
+  // Jouer un son d'avertissement si on arrive au seuil
+  if (timeLeft.value === props.warningThreshold) {
+    playSound('countdown', 0.5);
+  }
+  
+  // Jouer un son pour les 3 dernières secondes
+  if (timeLeft.value <= 3 && timeLeft.value > 0) {
+    playSound('countdown', 0.3);
+  }
+  
+  // Terminer si le temps est écoulé
+  if (timeLeft.value <= 0) {
+    finish();
+  }
 };
 
+// Fonction appelée quand le temps est écoulé
 const finish = () => {
   pause();
   emit('finish');
+  playSound('timeout', 0.7);
+  
+  // Animation de fin de temps
+  if (timerRef.value) {
+    runPreset('fadeOut', timerRef.value, {
+      duration: 0.3,
+      ease: 'power2.in',
+      onComplete: () => {
+        // Réinitialiser l'opacité après l'animation
+        timerRef.value.style.opacity = 1;
+      }
+    });
+  }
 };
 
-onMounted(() => {
-  timeLeft.value = props.seconds;
+// Gérer les changements de props
+watch(() => props.seconds, (newValue) => {
+  reset();
+  timeLeft.value = newValue;
   
-  if (props.autoStart && !props.disabled) {
+  if (props.autoStart) {
+    start();
+  }
+});
+
+// Lifecycle hooks
+onMounted(() => {
+  if (props.autoStart) {
     start();
   }
 });
@@ -125,67 +245,55 @@ onBeforeUnmount(() => {
   if (intervalId.value !== null) {
     clearInterval(intervalId.value);
   }
+  
+  // S'assurer que l'animation est nettoyée
+  if (pulseAnimation.value) {
+    pulseAnimation.value.kill();
+  }
 });
 
-// Exposer des méthodes au composant parent
+// Exposer des méthodes à la ref parentale
 defineExpose({
   start,
   pause,
-  reset
+  reset,
+  setValue,
+  timeLeft
 });
 </script>
 
 <template>
-  <div>
-    <!-- Timer circulaire -->
-    <div v-if="variant === 'circle'" class="relative" :class="sizeClass">
-      <svg class="w-full h-full" viewBox="0 0 36 36">
-        <!-- Cercle background -->
-        <circle
-          cx="18"
-          cy="18"
-          r="16"
-          fill="none"
-          class="stroke-gray-700"
-          stroke-width="2"
-        ></circle>
-        
-        <!-- Cercle de progression -->
-        <circle
-          cx="18"
-          cy="18"
-          r="16"
-          fill="none"
-          :class="bgColorClass"
-          stroke-width="2"
-          stroke-dasharray="100"
-          :stroke-dashoffset="100 - percentage"
-          stroke-linecap="round"
-          transform="rotate(-90 18 18)"
-        ></circle>
-      </svg>
-      
-      <div 
-        class="absolute inset-0 flex items-center justify-center font-bold transition-colors duration-300"
-        :class="colorClass"
-      >
-        {{ formattedTime }}
-      </div>
+  <div class="flex flex-col items-center">
+    <!-- Affichage du temps restant -->
+    <div 
+      ref="timerRef"
+      :class="[sizeClasses, colorClasses, isWarning ? 'text-red-500' : '']"
+    >
+      {{ formattedTime }}
     </div>
     
-    <!-- Timer barre -->
-    <div v-else class="w-full">
-      <div class="flex justify-between items-center mb-1">
-        <span :class="colorClass" class="font-bold">{{ formattedTime }}s</span>
-      </div>
-      
-      <div class="w-full h-2 bg-gray-700 rounded-full overflow-hidden">
-        <div
-          class="h-full transition-all duration-300 rounded-full"
-          :class="bgColorClass"
-          :style="{ width: `${percentage}%` }"
-        ></div>
-      </div>
+    <!-- Barre de progression -->
+    <div v-if="animated" class="w-full h-1 bg-gray-700 rounded-full mt-1 overflow-hidden">
+      <div 
+        :class="[progressColorClasses, isWarning ? 'pulse-bar' : '']"
+        class="h-full transition-all duration-300 ease-linear"
+        :style="{ width: `${percentage}%` }"
+      ></div>
     </div>
   </div>
 </template>
+
+<style scoped>
+@keyframes pulse-bar {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+
+.pulse-bar {
+  animation: pulse-bar 1s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+</style>

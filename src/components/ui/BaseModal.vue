@@ -1,6 +1,8 @@
+// src/components/ui/BaseModal.vue
 <script setup lang="ts">
 import { ref, watch, onMounted, onBeforeUnmount } from 'vue';
 import { XIcon } from 'lucide-vue-next';
+import { fadeIn, fadeOut, zoomIn, zoomOut } from '../../utils/animations/transitionHelper';
 
 const props = defineProps({
   modelValue: {
@@ -21,17 +23,86 @@ const props = defineProps({
   closable: {
     type: Boolean,
     default: true
+  },
+  animation: {
+    type: String,
+    default: 'zoom',
+    validator: (value: string) => {
+      return ['fade', 'zoom'].includes(value);
+    }
   }
 });
 
 const emit = defineEmits(['update:modelValue', 'close']);
 
 const dialog = ref<HTMLDialogElement | null>(null);
+const modalContent = ref<HTMLElement | null>(null);
+const backdropVisible = ref(false);
 
 const close = () => {
   if (props.closable) {
-    emit('update:modelValue', false);
-    emit('close');
+    hideWithAnimation();
+  }
+};
+
+const hideWithAnimation = () => {
+  if (!modalContent.value) return;
+  
+  // Animer la disparition selon le type d'animation choisi
+  if (props.animation === 'zoom') {
+    zoomOut(modalContent.value, {
+      duration: 0.3, 
+      ease: 'power2.in',
+      scale: 0.5,
+      onComplete: () => {
+        emit('update:modelValue', false);
+        emit('close');
+      }
+    });
+  } else {
+    fadeOut(modalContent.value, {
+      duration: 0.3,
+      ease: 'power2.in',
+      onComplete: () => {
+        emit('update:modelValue', false);
+        emit('close');
+      }
+    });
+  }
+  
+  // Animer la disparition du backdrop
+  fadeOut(dialog.value, {
+    duration: 0.3,
+    delay: 0.1
+  });
+};
+
+const showWithAnimation = () => {
+  if (!dialog.value || !modalContent.value) return;
+  
+  // Afficher le dialog en premier (sans animation)
+  dialog.value.showModal();
+  document.body.classList.add('overflow-hidden');
+  
+  // Animer l'apparition du backdrop
+  fadeIn(dialog.value, {
+    duration: 0.3
+  });
+  
+  // Animer l'apparition du contenu selon le type d'animation choisi
+  if (props.animation === 'zoom') {
+    zoomIn(modalContent.value, {
+      duration: 0.5,
+      ease: 'back.out(1.7)',
+      scale: 0.7,
+      delay: 0.1
+    });
+  } else {
+    fadeIn(modalContent.value, {
+      duration: 0.5,
+      ease: 'power2.out',
+      delay: 0.1
+    });
   }
 };
 
@@ -48,10 +119,9 @@ const handleClickOutside = (e: MouseEvent) => {
 };
 
 watch(() => props.modelValue, (newVal) => {
-  if (newVal && dialog.value && !dialog.value.open) {
-    dialog.value.showModal();
-    document.body.classList.add('overflow-hidden');
-  } else if (!newVal && dialog.value && dialog.value.open) {
+  if (newVal) {
+    showWithAnimation();
+  } else if (dialog.value && dialog.value.open) {
     dialog.value.close();
     document.body.classList.remove('overflow-hidden');
   }
@@ -59,8 +129,7 @@ watch(() => props.modelValue, (newVal) => {
 
 onMounted(() => {
   if (props.modelValue && dialog.value) {
-    dialog.value.showModal();
-    document.body.classList.add('overflow-hidden');
+    showWithAnimation();
   }
   document.addEventListener('keydown', handleEscape);
 });
@@ -81,11 +150,12 @@ const sizeClasses = {
 <template>
   <dialog
     ref="dialog"
-    class="backdrop:bg-gray-900 backdrop:bg-opacity-50 rounded-lg p-0 bg-transparent shadow-2xl open:animate-fade-in"
+    class="backdrop:bg-gray-900 backdrop:bg-opacity-50 rounded-lg p-0 bg-transparent shadow-2xl open:opacity-0"
     @click="handleClickOutside"
   >
     <div
-      class="bg-primary-light border border-gray-800 rounded-lg overflow-hidden"
+      ref="modalContent"
+      class="bg-primary-light border border-gray-800 rounded-lg overflow-hidden opacity-0"
       :class="sizeClasses[size]"
     >
       <div class="flex items-center justify-between p-4 border-b border-gray-800">
@@ -110,24 +180,3 @@ const sizeClasses = {
     </div>
   </dialog>
 </template>
-
-<style scoped>
-dialog::backdrop {
-  background-color: rgba(0, 0, 0, 0.5);
-}
-
-dialog[open] {
-  animation: fade-in 0.3s ease-out;
-}
-
-@keyframes fade-in {
-  from {
-    opacity: 0;
-    transform: translateY(-10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-</style>

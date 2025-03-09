@@ -1,7 +1,9 @@
+// src/components/duel/ScoreboardPanel.vue
 <script setup lang="ts">
 import { computed } from 'vue';
 import BaseCard from '../ui/BaseCard.vue';
 import { Trophy, Medal, Award } from 'lucide-vue-next';
+import { formatDuelScore, getScoreColorClass } from '../../utils/formatters/scoreFormatter';
 
 const props = defineProps({
   players: {
@@ -27,6 +29,23 @@ const props = defineProps({
   totalQuestions: {
     type: Number,
     required: true
+  },
+  // On peut aussi recevoir les valeurs formatées directement
+  formattedPlayerScore: {
+    type: String,
+    default: null
+  },
+  formattedOpponentScore: {
+    type: String,
+    default: null
+  },
+  playerScoreClass: {
+    type: String,
+    default: null
+  },
+  opponentScoreClass: {
+    type: String,
+    default: null
   }
 });
 
@@ -54,6 +73,44 @@ const isDraw = computed(() => {
   return player1.score === player2.score;
 });
 
+// Si les valeurs formatées ne sont pas fournies, on les calcule
+const playerFormattedScore = computed(() => {
+  if (props.formattedPlayerScore) return props.formattedPlayerScore;
+  if (!props.players || playerIndex.value < 0) return '-';
+  return formatDuelScore(
+    props.players[playerIndex.value].score,
+    props.totalQuestions
+  );
+});
+
+const opponentFormattedScore = computed(() => {
+  if (props.formattedOpponentScore) return props.formattedOpponentScore;
+  if (!props.players || opponentIndex.value < 0) return '-';
+  return formatDuelScore(
+    props.players[opponentIndex.value].score,
+    props.totalQuestions
+  );
+});
+
+// Classes de couleur pour les scores
+const playerColorClass = computed(() => {
+  if (props.playerScoreClass) return props.playerScoreClass;
+  if (!props.players || playerIndex.value < 0) return '';
+  return getScoreColorClass(
+    props.players[playerIndex.value].score,
+    props.totalQuestions
+  );
+});
+
+const opponentColorClass = computed(() => {
+  if (props.opponentScoreClass) return props.opponentScoreClass;
+  if (!props.players || opponentIndex.value < 0) return '';
+  return getScoreColorClass(
+    props.players[opponentIndex.value].score,
+    props.totalQuestions
+  );
+});
+
 const correctAnswersPercentage = computed(() => {
   if (!props.players || playerIndex.value < 0) return 0;
   const playerScore = props.players[playerIndex.value].score;
@@ -77,8 +134,8 @@ const opponentAnswersPercentage = computed(() => {
     <div v-if="props.players && playerIndex >= 0" class="space-y-6">
       <div class="grid grid-cols-3 gap-4">
         <div class="col-span-1 text-center py-3 px-4 bg-primary rounded-lg border border-gray-800">
-          <div class="text-4xl font-heading text-white">
-            {{ players[playerIndex].score }}
+          <div class="text-4xl font-heading" :class="playerColorClass">
+            {{ playerFormattedScore }}
           </div>
           <div class="text-sm text-gray-400 mt-1">Tes points</div>
         </div>
@@ -105,8 +162,8 @@ const opponentAnswersPercentage = computed(() => {
         </div>
         
         <div class="col-span-1 text-center py-3 px-4 bg-primary rounded-lg border border-gray-800">
-          <div class="text-4xl font-heading text-white">
-            {{ players[opponentIndex].score }}
+          <div class="text-4xl font-heading" :class="opponentColorClass">
+            {{ opponentFormattedScore }}
           </div>
           <div class="text-sm text-gray-400 mt-1">Adversaire</div>
         </div>
@@ -116,7 +173,7 @@ const opponentAnswersPercentage = computed(() => {
         <div>
           <div class="flex justify-between mb-1">
             <span class="text-sm text-white">Tes réponses correctes</span>
-            <span class="text-sm text-accent">{{ players[playerIndex].score }}/{{ totalQuestions }}</span>
+            <span class="text-sm text-accent">{{ playerFormattedScore }}</span>
           </div>
           <div class="w-full h-2 bg-gray-700 rounded-full overflow-hidden">
             <div 
@@ -129,7 +186,7 @@ const opponentAnswersPercentage = computed(() => {
         <div>
           <div class="flex justify-between mb-1">
             <span class="text-sm text-white">Réponses adversaire</span>
-            <span class="text-sm text-secondary">{{ players[opponentIndex].score }}/{{ totalQuestions }}</span>
+            <span class="text-sm text-secondary">{{ opponentFormattedScore }}</span>
           </div>
           <div class="w-full h-2 bg-gray-700 rounded-full overflow-hidden">
             <div 

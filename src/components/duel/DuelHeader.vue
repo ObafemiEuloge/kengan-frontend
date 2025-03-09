@@ -4,25 +4,17 @@ import { Sword, X } from 'lucide-vue-next';
 import BaseButton from '../ui/BaseButton.vue';
 
 const props = defineProps({
-  players: {
-    type: Array,
-    required: true,
-    validator: (arr: any[]) => {
-      return (
-        arr.length === 2 &&
-        arr.every(
-          player =>
-            player &&
-            typeof player.username === 'string' &&
-            typeof player.avatar === 'string' &&
-            typeof player.level === 'number'
-        )
-      );
-    }
+  playerInfo: {
+    type: Object,
+    required: true
   },
-  scores: {
-    type: Array,
-    default: () => [0, 0]
+  opponentInfo: {
+    type: Object,
+    required: true
+  },
+  currentScore: {
+    type: Object,
+    default: () => ({ player: 0, opponent: 0 })
   },
   currentQuestion: {
     type: Number,
@@ -49,12 +41,12 @@ const getProgressPercent = computed(() => {
   return (props.currentQuestion / props.totalQuestions) * 100;
 });
 
-const isPlayer1Winning = computed(() => {
-  return props.scores[0] > props.scores[1];
+const isPlayerWinning = computed(() => {
+  return props.currentScore.player > props.currentScore.opponent;
 });
 
-const isPlayer2Winning = computed(() => {
-  return props.scores[1] > props.scores[0];
+const isOpponentWinning = computed(() => {
+  return props.currentScore.opponent > props.currentScore.player;
 });
 </script>
 
@@ -90,31 +82,31 @@ const isPlayer2Winning = computed(() => {
         </div>
         
         <div class="flex justify-between items-center">
-          <!-- Joueur 1 -->
+          <!-- Joueur -->
           <div 
             class="flex flex-col items-center" 
-            :class="{ 'transform scale-110': isPlayer1Winning && variant === 'results' }"
+            :class="{ 'transform scale-110': isPlayerWinning && variant === 'results' }"
           >
             <div class="relative">
               <img 
-                :src="players[0].avatar" 
-                :alt="players[0].username"
+                :src="playerInfo?.avatar || '/images/avatars/default.webp'" 
+                :alt="playerInfo?.username || 'Vous'"
                 class="w-16 h-16 md:w-20 md:h-20 rounded-full border-2"
-                :class="isPlayer1Winning ? 'border-accent animate-pulse' : 'border-gray-700'"
+                :class="isPlayerWinning ? 'border-accent animate-pulse' : 'border-gray-700'"
               />
               <div 
                 class="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-primary-dark flex items-center justify-center text-xs"
               >
-                {{ players[0].level }}
+                {{ playerInfo?.level || 1 }}
               </div>
             </div>
             <div class="mt-2 text-center">
-              <div class="text-white font-bold">{{ players[0].username }}</div>
+              <div class="text-white font-bold">{{ playerInfo?.username || 'Vous' }}</div>
               <div 
                 class="text-2xl font-heading mt-1"
-                :class="isPlayer1Winning ? 'text-accent' : 'text-white'"
+                :class="isPlayerWinning ? 'text-accent' : 'text-white'"
               >
-                {{ scores[0] }}
+                {{ currentScore?.player || 0 }}
               </div>
             </div>
           </div>
@@ -132,31 +124,31 @@ const isPlayer2Winning = computed(() => {
             </div>
           </div>
           
-          <!-- Joueur 2 -->
+          <!-- Adversaire -->
           <div 
             class="flex flex-col items-center"
-            :class="{ 'transform scale-110': isPlayer2Winning && variant === 'results' }"
+            :class="{ 'transform scale-110': isOpponentWinning && variant === 'results' }"
           >
             <div class="relative">
               <img 
-                :src="players[1].avatar" 
-                :alt="players[1].username"
+                :src="opponentInfo?.avatar || '/images/avatars/default.webp'" 
+                :alt="opponentInfo?.username || 'Adversaire'"
                 class="w-16 h-16 md:w-20 md:h-20 rounded-full border-2"
-                :class="isPlayer2Winning ? 'border-accent animate-pulse' : 'border-gray-700'"
+                :class="isOpponentWinning ? 'border-accent animate-pulse' : 'border-gray-700'"
               />
               <div 
                 class="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-primary-dark flex items-center justify-center text-xs"
               >
-                {{ players[1].level }}
+                {{ opponentInfo?.level || 1 }}
               </div>
             </div>
             <div class="mt-2 text-center">
-              <div class="text-white font-bold">{{ players[1].username }}</div>
+              <div class="text-white font-bold">{{ opponentInfo?.username || 'Adversaire' }}</div>
               <div 
                 class="text-2xl font-heading mt-1"
-                :class="isPlayer2Winning ? 'text-accent' : 'text-white'"
+                :class="isOpponentWinning ? 'text-accent' : 'text-white'"
               >
-                {{ scores[1] }}
+                {{ currentScore?.opponent || 0 }}
               </div>
             </div>
           </div>

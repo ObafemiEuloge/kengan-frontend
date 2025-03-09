@@ -12,6 +12,7 @@ import CallToActionButton from '../components/landing/CallToActionButton.vue';
 import FooterSection from '../components/landing/FooterSection.vue';
 import BaseButton from '../components/ui/BaseButton.vue';
 import BaseModal from '../components/ui/BaseModal.vue';
+import { fadeIn, slideUp, zoomIn } from '../utils/animations/transitionHelper';
 
 // État pour le modal de bienvenue
 const showWelcomeModal = ref(false);
@@ -42,6 +43,11 @@ onMounted(async () => {
   // Simuler un temps de chargement pour les ressources
   setTimeout(() => {
     isLoading.value = false;
+    
+    // Animer l'apparition du contenu une fois le chargement terminé
+    nextTick(() => {
+      animateContent();
+    });
   }, 1000);
 
   // Vérifier dans le localStorage si l'utilisateur a déjà visité le site
@@ -54,12 +60,22 @@ onMounted(async () => {
     // Attendre que les animations initiales se terminent
     setTimeout(() => {
       showWelcomeModal.value = true;
+      
+      // Animer l'apparition du modal
+      nextTick(() => {
+        animateWelcomeModal();
+      });
     }, 3000);
   }
 
   // Vérifier si l'utilisateur a déjà consenti aux cookies
   if (localStorage.getItem('cookieConsent') === 'true') {
     showCookieConsent.value = false;
+  } else {
+    // Animer l'apparition de la bannière de cookies
+    nextTick(() => {
+      animateCookieBanner();
+    });
   }
 
   // Faire défiler vers le haut de la page lors du chargement
@@ -96,7 +112,8 @@ const setupIntersectionObservers = () => {
     const observer = new IntersectionObserver((entries) => {
       entries.forEach(entry => {
         if (entry.isIntersecting) {
-          entry.target.classList.add('visible');
+          // Utiliser les fonctions d'animation GSAP au lieu des classes CSS
+          animateSection(entry.target);
           observer.unobserve(entry.target);
         }
       });
@@ -106,6 +123,53 @@ const setupIntersectionObservers = () => {
       observer.observe(section);
     });
   });
+};
+
+// Animer une section spécifique
+const animateSection = (section: Element) => {
+  // Utiliser slideUp pour animer l'apparition des sections
+  slideUp(section, {
+    duration: 0.8,
+    ease: 'power2.out',
+    distance: 50
+  });
+};
+
+// Animer tout le contenu de la page
+const animateContent = () => {
+  // Animer chaque section visible avec un délai séquentiel
+  const sections = document.querySelectorAll('.animate-on-first-load');
+  sections.forEach((section, index) => {
+    fadeIn(section, {
+      duration: 0.8,
+      delay: 0.2 * index,
+      ease: 'power2.out'
+    });
+  });
+};
+
+// Animer le modal de bienvenue
+const animateWelcomeModal = () => {
+  const modal = document.querySelector('.welcome-modal-content');
+  if (modal) {
+    zoomIn(modal, {
+      duration: 0.5,
+      ease: 'back.out(1.7)',
+      scale: 0.7
+    });
+  }
+};
+
+// Animer la bannière de cookies
+const animateCookieBanner = () => {
+  const banner = document.querySelector('.cookie-banner');
+  if (banner) {
+    slideUp(banner, {
+      duration: 0.5,
+      ease: 'power2.out',
+      distance: 30
+    });
+  }
 };
 
 // Gestionnaire pour le consentement des cookies
@@ -133,7 +197,7 @@ onBeforeUnmount(() => {
     <!-- Sections principales de la landing page -->
     <div class="landing-page">
       <!-- Section héro animée -->
-      <HeroSection class="animate-on-scroll" />
+      <HeroSection class="animate-on-scroll animate-on-first-load" />
       
       <!-- Section des fonctionnalités -->
       <FeaturesSection class="animate-on-scroll" />
@@ -157,7 +221,7 @@ onBeforeUnmount(() => {
       title="BIENVENUE DANS L'ARÈNE KENGAN!"
       size="md"
     >
-      <div class="p-6 text-center">
+      <div class="p-6 text-center welcome-modal-content">
         <img src="/images/welcome-otaku.webp" alt="Bienvenue" class="w-32 h-32 mx-auto mb-4" />
         <h3 class="text-xl text-white font-heading mb-3">PRÊT À DÉFIER LES MEILLEURS OTAKUS?</h3>
         <p class="text-neutral-light mb-6">
@@ -183,7 +247,7 @@ onBeforeUnmount(() => {
     <!-- Bannière de consentement des cookies -->
     <div 
       v-if="showCookieConsent" 
-      class="fixed bottom-0 left-0 right-0 bg-primary-dark border-t border-gray-800 p-4 z-40"
+      class="fixed bottom-0 left-0 right-0 bg-primary-dark border-t border-gray-800 p-4 z-40 cookie-banner"
     >
       <div class="container mx-auto flex flex-col md:flex-row items-center justify-between">
         <p class="text-neutral-light mb-4 md:mb-0 md:mr-4">
@@ -211,29 +275,22 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
+/* Ces styles sont maintenus pour la compatibilité avec les navigateurs
+   qui ne prennent pas en charge JavaScript ou qui ont des préférences de réduction de mouvement */
 .animate-on-scroll {
   opacity: 0;
-  transform: translateY(20px);
-  transition: opacity 0.8s ease, transform 0.8s ease;
 }
 
-.animate-on-scroll.visible {
-  opacity: 1;
-  transform: translateY(0);
+/* Animations fluides */
+@media (prefers-reduced-motion: reduce) {
+  .animate-on-scroll {
+    opacity: 1;
+  }
 }
 
 /* Amélioration de l'accessibilité : meilleur focus visible */
 :focus-visible {
   outline: 2px solid #E63946;
   outline-offset: 2px;
-}
-
-/* Animations fluides */
-@media (prefers-reduced-motion: reduce) {
-  .animate-on-scroll {
-    transition: none;
-    transform: none;
-    opacity: 1;
-  }
 }
 </style>

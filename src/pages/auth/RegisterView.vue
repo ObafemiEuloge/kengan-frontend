@@ -9,6 +9,12 @@ import BaseCheckbox from '../../components/ui/BaseCheckbox.vue';
 import BaseButton from '../../components/ui/BaseButton.vue';
 import BaseAlert from '../../components/ui/BaseAlert.vue';
 import BaseModal from '../../components/ui/BaseModal.vue';
+import { 
+  validateUsername, 
+  validateEmail,
+  validatePassword, 
+  validatePasswordConfirmation 
+} from '../../utils/validators/authValidators';
 
 // Initialiser le routeur et le store d'authentification
 const router = useRouter();
@@ -32,84 +38,32 @@ const currentStep = ref(1);
 const totalSteps = 3;
 const selectedAvatar = ref('/images/avatars/default.webp');
 
-// Validation des champs
-const usernameError = computed(() => {
-  if (!form.value.username) return '';
-  
-  if (form.value.username.length < 3) {
-    return 'Le pseudo doit contenir au moins 3 caractères';
-  }
-  
-  if (form.value.username.length > 20) {
-    return 'Le pseudo ne doit pas dépasser 20 caractères';
-  }
-  
-  // Validateur de caractères alphanumériques et underscore
-  const usernameRegex = /^[a-zA-Z0-9_]+$/;
-  if (!usernameRegex.test(form.value.username)) {
-    return 'Le pseudo ne peut contenir que des lettres, chiffres et underscore';
-  }
-  
-  return '';
-});
+// Validation des champs en utilisant les fonctions du validateur
+const usernameValidation = computed(() => validateUsername(form.value.username));
+const emailValidation = computed(() => validateEmail(form.value.email));
+const passwordValidation = computed(() => validatePassword(form.value.password));
+const confirmPasswordValidation = computed(() => 
+  validatePasswordConfirmation(form.value.password, form.value.confirmPassword)
+);
 
-const emailError = computed(() => {
-  if (!form.value.email) return '';
-  
-  // Validation email
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if (!emailRegex.test(form.value.email)) {
-    return 'Veuillez entrer une adresse email valide';
-  }
-  
-  return '';
-});
-
-const passwordError = computed(() => {
-  if (!form.value.password) return '';
-  
-  if (form.value.password.length < 8) {
-    return 'Le mot de passe doit contenir au moins 8 caractères';
-  }
-  
-  // Validation force du mot de passe
-  const strongPasswordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/;
-  if (!strongPasswordRegex.test(form.value.password)) {
-    return 'Le mot de passe doit contenir au moins une majuscule, une minuscule, un chiffre et un caractère spécial';
-  }
-  
-  return '';
-});
-
-const confirmPasswordError = computed(() => {
-  if (!form.value.confirmPassword) return '';
-  
-  if (form.value.password !== form.value.confirmPassword) {
-    return 'Les mots de passe ne correspondent pas';
-  }
-  
-  return '';
-});
+// Extraire les messages d'erreur
+const usernameError = computed(() => !usernameValidation.value.valid ? usernameValidation.value.message : '');
+const emailError = computed(() => !emailValidation.value.valid ? emailValidation.value.message : '');
+const passwordError = computed(() => !passwordValidation.value.valid ? passwordValidation.value.message : '');
+const confirmPasswordError = computed(() => !confirmPasswordValidation.value.valid ? confirmPasswordValidation.value.message : '');
 
 // Vérifier si le formulaire est valide pour l'étape actuelle
 const isCurrentStepValid = computed(() => {
   if (currentStep.value === 1) {
-    return !!form.value.username && 
-           !!form.value.email && 
-           !usernameError.value && 
-           !emailError.value;
+    return usernameValidation.value.valid && emailValidation.value.valid;
   }
   
   if (currentStep.value === 2) {
-    return !!form.value.password && 
-           !!form.value.confirmPassword && 
-           !passwordError.value && 
-           !confirmPasswordError.value;
+    return passwordValidation.value.valid && confirmPasswordValidation.value.valid;
   }
   
   if (currentStep.value === 3) {
-    return !!selectedAvatar.value && 
-           form.value.agreeTerms;
+    return !!selectedAvatar.value && form.value.agreeTerms;
   }
   
   return false;
@@ -268,6 +222,31 @@ const togglePasswordVisibility = () => {
               >
                 {{ showPassword ? '🙈' : '👁️' }}
               </button>
+              
+              <!-- Indicateur de force de mot de passe si disponible -->
+              <div v-if="form.password && passwordValidation.valid && passwordValidation.strength" class="mt-1">
+                <div class="flex items-center">
+                  <span class="text-xs mr-2">Force :</span>
+                  <div class="h-1 w-full bg-gray-700 rounded">
+                    <div 
+                      class="h-1 rounded" 
+                      :class="{
+                        'w-1/3 bg-red-500': passwordValidation.strength === 'weak',
+                        'w-2/3 bg-yellow-500': passwordValidation.strength === 'medium',
+                        'w-full bg-green-500': passwordValidation.strength === 'strong'
+                      }"
+                    ></div>
+                  </div>
+                  <span class="text-xs ml-2" :class="{
+                    'text-red-500': passwordValidation.strength === 'weak',
+                    'text-yellow-500': passwordValidation.strength === 'medium',
+                    'text-green-500': passwordValidation.strength === 'strong'
+                  }">
+                    {{ passwordValidation.strength === 'weak' ? 'Faible' : 
+                       passwordValidation.strength === 'medium' ? 'Moyen' : 'Fort' }}
+                  </span>
+                </div>
+              </div>
             </div>
             
             <!-- Confirmation mot de passe -->

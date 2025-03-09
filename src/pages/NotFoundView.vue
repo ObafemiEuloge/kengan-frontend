@@ -48,7 +48,7 @@ const goBack = () => {
         
         <div class="mt-16">
           <img 
-            src="/images/404-anime.webp" 
+            src="/images/victory.webp" 
             alt="404 Error" 
             class="max-w-xs mx-auto"
           />

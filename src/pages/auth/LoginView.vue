@@ -9,6 +9,7 @@ import BaseCheckbox from '../../components/ui/BaseCheckbox.vue';
 import BaseButton from '../../components/ui/BaseButton.vue';
 import BaseAlert from '../../components/ui/BaseAlert.vue';
 import { Sword } from 'lucide-vue-next';
+import { validateLoginForm } from '../../utils/validators/authValidators';
 
 // Initialiser le routeur et le store d'authentification
 const router = useRouter();
@@ -26,35 +27,23 @@ const isSubmitting = ref(false);
 const formError = ref('');
 const showPassword = ref(false);
 
-// Validation des champs
-const emailError = computed(() => {
-  if (!form.value.email) return '';
-  
-  // Validation email simple
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if (!emailRegex.test(form.value.email)) {
-    return 'Veuillez entrer une adresse email valide';
-  }
-  
-  return '';
+// Validation du formulaire
+const formErrors = computed(() => {
+  return validateLoginForm({
+    email: form.value.email,
+    password: form.value.password
+  });
 });
 
-const passwordError = computed(() => {
-  if (!form.value.password) return '';
-  
-  if (form.value.password.length < 6) {
-    return 'Le mot de passe doit contenir au moins 6 caractères';
-  }
-  
-  return '';
-});
+// Erreurs individuelles pour les champs
+const emailError = computed(() => formErrors.value.email || '');
+const passwordError = computed(() => formErrors.value.password || '');
 
 // Vérifier si le formulaire est valide
 const isFormValid = computed(() => {
-  return !!form.value.email && 
-         !!form.value.password && 
-         !emailError.value && 
-         !passwordError.value;
+  return Object.keys(formErrors.value).length === 0 && 
+         !!form.value.email && 
+         !!form.value.password;
 });
 
 // Fonction de soumission du formulaire

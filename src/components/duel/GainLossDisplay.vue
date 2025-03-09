@@ -1,5 +1,7 @@
+<!-- src/components/duel/GainLossDisplay.vue -->
 <script setup lang="ts">
 import { computed } from 'vue';
+import { formatFCFA, formatCompactCurrency } from '../../utils/formatters/currencyFormatter';
 import BaseCard from '../ui/BaseCard.vue';
 import { TrendingUp, TrendingDown, DollarSign, CircleDollarSign } from 'lucide-vue-next';
 
@@ -72,24 +74,24 @@ const stake = computed(() => {
           :class="isWinner ? 'text-green-400' : 'text-red-400'"
         />
         <span class="text-4xl font-heading">
-          {{ Math.abs(earnings).toLocaleString() }} FCFA
+          {{ formatFCFA(Math.abs(earnings)) }}
         </span>
       </div>
       
       <div class="space-y-4">
         <div class="flex justify-between items-center py-2 border-b border-gray-800">
           <span class="text-gray-400">Mise</span>
-          <span class="text-white">{{ stake.toLocaleString() }} FCFA</span>
+          <span class="text-white">{{ formatFCFA(stake) }}</span>
         </div>
         
         <div v-if="isWinner" class="flex justify-between items-center py-2 border-b border-gray-800">
           <span class="text-gray-400">Gain brut</span>
-          <span class="text-green-400">+{{ (stake * 2).toLocaleString() }} FCFA</span>
+          <span class="text-green-400">+{{ formatFCFA(stake * 2) }}</span>
         </div>
         
         <div v-if="isWinner" class="flex justify-between items-center py-2 border-b border-gray-800">
           <span class="text-gray-400">Commission (10%)</span>
-          <span class="text-red-400">-{{ commission.toLocaleString() }} FCFA</span>
+          <span class="text-red-400">-{{ formatFCFA(commission) }}</span>
         </div>
         
         <div class="flex justify-between items-center py-2 border-b border-gray-800">
@@ -98,7 +100,7 @@ const stake = computed(() => {
             class="font-bold"
             :class="isWinner ? 'text-green-400' : 'text-red-400'"
           >
-            {{ isWinner ? '+' : '-' }}{{ Math.abs(earnings).toLocaleString() }} FCFA
+            {{ isWinner ? '+' : '-' }}{{ formatFCFA(Math.abs(earnings)) }}
           </span>
         </div>
       </div>

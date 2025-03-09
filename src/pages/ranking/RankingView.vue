@@ -11,17 +11,57 @@ import { useAuthStore } from '../../store/auth/authStore';
 import { useRankingStore } from '../../store/player/rankingStore';
 import type { RankingPeriod, Ranking } from '../../types/player/ranking';
 import BaseButton from '../../components/ui/BaseButton.vue';
+import { formatWinRate, formatScoreWithRank, getOrdinalSuffix } from '../../utils/formatters/scoreFormatter';
+import { 
+  startOfWeek, 
+  endOfWeek, 
+  startOfMonth, 
+  endOfMonth, 
+  startOfYear, 
+  endOfYear,
+  getDaysDifference,
+  isDateInRange 
+} from '../../utils/date/dateCalculator';
 
 const router = useRouter();
 const authStore = useAuthStore();
 const rankingStore = useRankingStore();
 
+// Générer dynamiquement les périodes de classement
+const now = new Date();
+
 // État pour les périodes de classement disponibles
 const rankingPeriods = ref<RankingPeriod[]>([
-  { id: 'weekly', name: 'HEBDOMADAIRE', startDate: '2023-12-11', endDate: '2023-12-17', isActive: true },
-  { id: 'monthly', name: 'MENSUEL', startDate: '2023-12-01', endDate: '2023-12-31', isActive: false },
-  { id: 'season', name: 'SAISON ACTUELLE', startDate: '2023-10-01', endDate: '2023-12-31', isActive: false },
-  { id: 'all-time', name: 'TOUS LES TEMPS', startDate: '2023-01-01', endDate: '2099-12-31', isActive: false }
+  { 
+    id: 'weekly', 
+    name: 'HEBDOMADAIRE', 
+    startDate: startOfWeek(now).toISOString(), 
+    endDate: endOfWeek(now).toISOString(), 
+    isActive: true 
+  },
+  { 
+    id: 'monthly', 
+    name: 'MENSUEL', 
+    startDate: startOfMonth(now).toISOString(), 
+    endDate: endOfMonth(now).toISOString(), 
+    isActive: false 
+  },
+  // Supposons que la saison actuelle est le trimestre actuel
+  { 
+    id: 'season', 
+    name: 'SAISON ACTUELLE', 
+    // Utilisons le trimestre actuel comme saison (juste pour l'exemple)
+    startDate: '2023-10-01', 
+    endDate: '2023-12-31', 
+    isActive: false 
+  },
+  { 
+    id: 'all-time', 
+    name: 'TOUS LES TEMPS', 
+    startDate: '2023-01-01', 
+    endDate: endOfYear(now).toISOString(), 
+    isActive: false 
+  }
 ]);
 
 // Période sélectionnée (par défaut: hebdomadaire)
@@ -89,6 +129,44 @@ const nextRankThreshold = computed(() => {
   return Math.ceil(currentScore / 500) * 500 + 500;
 });
 
+// Formater le taux de victoire de l'utilisateur
+const formattedWinRate = computed(() => {
+  if (!userRanking.value) return 'N/A';
+  return formatWinRate(userRanking.value.winRate * 100, 100, { decimalPlaces: 1 });
+});
+
+// Formater le score avec rang
+const formattedUserScore = computed(() => {
+  if (!userRanking.value) return 'N/A';
+  return formatScoreWithRank(
+    userRanking.value.score,
+    userRanking.value.position,
+    { prefix: '', suffix: '' }
+  );
+});
+
+// Vérifier si l'utilisateur est dans la période actuelle
+const isUserInCurrentPeriod = computed(() => {
+  if (!userRanking.value) return false;
+  const selectedPeriodObj = rankingPeriods.value.find(p => p.id === selectedPeriod.value);
+  if (!selectedPeriodObj) return false;
+  
+  // Vérifier si la dernière activité de l'utilisateur est dans la période actuelle
+  return isDateInRange(
+    userRanking.value.lastActiveDate || now,
+    selectedPeriodObj.startDate,
+    selectedPeriodObj.endDate
+  );
+});
+
+// Calculer le nombre de jours restants dans la période sélectionnée
+const daysRemainingInPeriod = computed(() => {
+  const selectedPeriodObj = rankingPeriods.value.find(p => p.id === selectedPeriod.value);
+  if (!selectedPeriodObj) return 0;
+  
+  return getDaysDifference(now, selectedPeriodObj.endDate);
+});
+
 // Récompenses de saison (exemple)
 const seasonRewards = [
   {
@@ -154,6 +232,10 @@ const viewFullRanking = () => {
             :loading="isLoadingUserRanking"
             :next-rank-threshold="nextRankThreshold"
             :period="selectedPeriod"
+            :formatted-win-rate="formattedWinRate"
+            :formatted-score="formattedUserScore"
+            :days-remaining="daysRemainingInPeriod"
+            :is-in-current-period="isUserInCurrentPeriod"
             @view-full-ranking="viewFullRanking"
             @find-opponents="findOpponents"
           />
@@ -173,8 +255,8 @@ const viewFullRanking = () => {
         <div>
           <SeasonInfoPanel 
             :season-number="1"
-            :season-start="'2023-10-01'"
-            :season-end="'2023-12-31'"
+            :season-start="rankingPeriods.find(p => p.id === 'season')?.startDate || ''"
+            :season-end="rankingPeriods.find(p => p.id === 'season')?.endDate || ''"
             :rewards="seasonRewards"
           />
           
@@ -211,7 +293,6 @@ const viewFullRanking = () => {
               >
                 Trouver des adversaires
               </BaseButton>
-              
             </div>
           </div>
         </div>

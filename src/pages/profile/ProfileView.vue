@@ -13,6 +13,7 @@ import BaseButton from '../../components/ui/BaseButton.vue';
 import BaseSpinner from '../../components/ui/BaseSpinner.vue';
 import { mockDuels } from '../../mock-data/duels';
 import type { User } from '../../types/auth/user';
+import { formatRelativeTime, formatDate } from '../../utils/formatters/dateFormatter';
 
 const router = useRouter();
 const route = useRoute();
@@ -36,6 +37,21 @@ const setActiveTab = (tab) => {
 const displayUser = computed(() => {
   return user.value || authStore.user;
 });
+
+// Formater la date d'inscription
+const formatRegistrationDate = (dateString: string) => {
+  return formatDate(dateString, {
+    locale: 'fr-FR',
+    includeTime: false,
+    monthFormat: 'long',
+    dayFormat: 'numeric'
+  });
+};
+
+// Formater la date d'obtention du badge
+const formatBadgeDate = (dateString: string) => {
+  return formatRelativeTime(dateString);
+};
 
 // Récupération des données de l'utilisateur
 const fetchUserData = async () => {
@@ -311,6 +327,12 @@ onMounted(() => {
 const handleProfileUpdate = () => {
   fetchUserData();
 };
+
+// Exposer les fonctions de formatage pour les composants enfants
+defineExpose({
+  formatRegistrationDate,
+  formatBadgeDate
+});
 </script>
 
 <template>
@@ -321,7 +343,10 @@ const handleProfileUpdate = () => {
     
     <div v-else class="space-y-6">
       <!-- En-tête du profil -->
-      <ProfileHeader :user="displayUser" />
+      <ProfileHeader 
+        :user="displayUser" 
+        :registrationDateFormatted="displayUser ? formatRegistrationDate(displayUser.registrationDate) : ''"
+      />
       
       <!-- Onglets -->
       <div class="bg-primary-light rounded-lg shadow-lg border border-gray-800 p-4">
@@ -377,6 +402,7 @@ const handleProfileUpdate = () => {
           v-if="activeTab === 'badges'"
           :badges="displayUser.badges"
           :allBadges="allBadges"
+          :formatBadgeDate="formatBadgeDate"
         />
         
         <!-- Paramètres du compte (uniquement pour l'utilisateur courant) -->

@@ -7,6 +7,12 @@ import AuthLayout from '../../layouts/AuthLayout.vue';
 import BaseInput from '../../components/ui/BaseInput.vue';
 import BaseButton from '../../components/ui/BaseButton.vue';
 import BaseAlert from '../../components/ui/BaseAlert.vue';
+import { 
+  validateEmail, 
+  validatePassword, 
+  validatePasswordConfirmation,
+  validateForgotPasswordForm
+} from '../../utils/validators/authValidators';
 
 // Initialiser le routeur et le store d'authentification
 const router = useRouter();
@@ -26,72 +32,56 @@ const formSuccess = ref('');
 const showPassword = ref(false);
 const step = ref(1); // 1: Email, 2: Code + nouveau mot de passe
 
-// Validation des champs
-const emailError = computed(() => {
-  if (!form.value.email) return '';
-  
-  // Validation email
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if (!emailRegex.test(form.value.email)) {
-    return 'Veuillez entrer une adresse email valide';
+// Validation des champs en utilisant les fonctions du validateur
+const emailValidation = computed(() => validateEmail(form.value.email));
+const passwordValidation = computed(() => validatePassword(form.value.newPassword));
+const confirmPasswordValidation = computed(() => 
+  validatePasswordConfirmation(form.value.newPassword, form.value.confirmPassword)
+);
+
+// Validation du formulaire d'oubli de mot de passe
+const forgotPasswordErrors = computed(() => {
+  if (step.value === 1) {
+    return validateForgotPasswordForm(form.value.email);
   }
-  
-  return '';
+  return {};
 });
 
-const resetTokenError = computed(() => {
-  if (!form.value.resetToken) return '';
+// Validation du code de réinitialisation
+const validateResetToken = (token: string) => {
+  if (!token) {
+    return { valid: false, message: 'Le code de réinitialisation est requis.' };
+  }
   
-  if (form.value.resetToken.length !== 6) {
-    return 'Le code de réinitialisation doit contenir 6 caractères';
+  if (token.length !== 6) {
+    return { valid: false, message: 'Le code de réinitialisation doit contenir 6 caractères.' };
   }
   
   // Vérifier si le code est numérique
   const numericRegex = /^\d+$/;
-  if (!numericRegex.test(form.value.resetToken)) {
-    return 'Le code doit contenir uniquement des chiffres';
+  if (!numericRegex.test(token)) {
+    return { valid: false, message: 'Le code doit contenir uniquement des chiffres.' };
   }
   
-  return '';
-});
+  return { valid: true };
+};
 
-const passwordError = computed(() => {
-  if (!form.value.newPassword) return '';
-  
-  if (form.value.newPassword.length < 8) {
-    return 'Le mot de passe doit contenir au moins 8 caractères';
-  }
-  
-  // Validation force du mot de passe
-  const strongPasswordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/;
-  if (!strongPasswordRegex.test(form.value.newPassword)) {
-    return 'Le mot de passe doit contenir au moins une majuscule, une minuscule, un chiffre et un caractère spécial';
-  }
-  
-  return '';
-});
+const resetTokenValidation = computed(() => validateResetToken(form.value.resetToken));
 
-const confirmPasswordError = computed(() => {
-  if (!form.value.confirmPassword) return '';
-  
-  if (form.value.newPassword !== form.value.confirmPassword) {
-    return 'Les mots de passe ne correspondent pas';
-  }
-  
-  return '';
-});
+// Extraire les messages d'erreur pour l'affichage
+const emailError = computed(() => forgotPasswordErrors.value.email || (!emailValidation.value.valid ? emailValidation.value.message : ''));
+const resetTokenError = computed(() => !resetTokenValidation.value.valid ? resetTokenValidation.value.message : '');
+const passwordError = computed(() => !passwordValidation.value.valid ? passwordValidation.value.message : '');
+const confirmPasswordError = computed(() => !confirmPasswordValidation.value.valid ? confirmPasswordValidation.value.message : '');
 
 // Vérifier si le formulaire est valide selon l'étape
 const isFormValid = computed(() => {
   if (step.value === 1) {
-    return !!form.value.email && !emailError.value;
+    return Object.keys(forgotPasswordErrors.value).length === 0 && emailValidation.value.valid;
   } else {
-    return !!form.value.resetToken && 
-           !!form.value.newPassword && 
-           !!form.value.confirmPassword &&
-           !resetTokenError.value &&
-           !passwordError.value && 
-           !confirmPasswordError.value;
+    return resetTokenValidation.value.valid && 
+           passwordValidation.value.valid && 
+           confirmPasswordValidation.value.valid;
   }
 });
 
@@ -265,6 +255,31 @@ const navigateToLogin = () => {
             >
               {{ showPassword ? '🙈' : '👁️' }}
             </button>
+
+            <!-- Indicateur de force de mot de passe si disponible -->
+            <div v-if="form.newPassword && passwordValidation.valid && passwordValidation.strength" class="mt-1">
+              <div class="flex items-center">
+                <span class="text-xs mr-2">Force :</span>
+                <div class="h-1 w-full bg-gray-700 rounded">
+                  <div 
+                    class="h-1 rounded" 
+                    :class="{
+                      'w-1/3 bg-red-500': passwordValidation.strength === 'weak',
+                      'w-2/3 bg-yellow-500': passwordValidation.strength === 'medium',
+                      'w-full bg-green-500': passwordValidation.strength === 'strong'
+                    }"
+                  ></div>
+                </div>
+                <span class="text-xs ml-2" :class="{
+                  'text-red-500': passwordValidation.strength === 'weak',
+                  'text-yellow-500': passwordValidation.strength === 'medium',
+                  'text-green-500': passwordValidation.strength === 'strong'
+                }">
+                  {{ passwordValidation.strength === 'weak' ? 'Faible' : 
+                     passwordValidation.strength === 'medium' ? 'Moyen' : 'Fort' }}
+                </span>
+              </div>
+            </div>
           </div>
           
           <!-- Confirmation du nouveau mot de passe -->

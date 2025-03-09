@@ -1,5 +1,7 @@
+<!-- src/components/duel/DuelSummaryCard.vue -->
 <script setup lang="ts">
 import { computed } from 'vue';
+import { formatFCFA, calculateCommission } from '../../utils/formatters/currencyFormatter';
 import BaseCard from '../ui/BaseCard.vue';
 import { Swords, Clock, PencilRuler, DollarSign } from 'lucide-vue-next';
 
@@ -24,7 +26,7 @@ const props = defineProps({
 });
 
 const commissionAmount = computed(() => {
-  return Math.round(props.duel.stake * 0.1); // 10% commission
+  return calculateCommission(props.duel.stake);
 });
 
 const winAmount = computed(() => {
@@ -53,7 +55,7 @@ const winAmount = computed(() => {
           <DollarSign class="w-4 h-4 mr-2" />
           Mise
         </div>
-        <div class="text-secondary font-medium">{{ duel.stake.toLocaleString() }} FCFA</div>
+        <div class="text-secondary font-medium">{{ formatFCFA(duel.stake) }}</div>
       </div>
       
       <div class="flex items-center justify-between py-2 border-b border-gray-800">
@@ -71,12 +73,12 @@ const winAmount = computed(() => {
       
       <div class="flex items-center justify-between py-2 border-b border-gray-800">
         <div class="text-gray-400">Commission plateforme</div>
-        <div class="text-white">{{ commissionAmount.toLocaleString() }} FCFA (10%)</div>
+        <div class="text-white">{{ formatFCFA(commissionAmount) }} (10%)</div>
       </div>
       
       <div class="flex items-center justify-between py-2 border-b border-gray-800">
         <div class="text-gray-400">Gain potentiel</div>
-        <div class="text-green-500 font-bold">{{ winAmount.toLocaleString() }} FCFA</div>
+        <div class="text-green-500 font-bold">{{ formatFCFA(winAmount) }}</div>
       </div>
       
       <div v-if="opponent" class="bg-primary-dark p-4 rounded-lg">

@@ -2,6 +2,7 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue';
 import { useWalletStore } from '../../store/wallet/walletStore';
+import { formatFCFA } from '../../utils/formatters/currencyFormatter';
 import { WalletIcon, CreditCardIcon, ClockIcon, LockIcon } from 'lucide-vue-next';
 import BaseCard from '../ui/BaseCard.vue';
 import BaseButton from '../ui/BaseButton.vue';
@@ -14,13 +15,6 @@ const pendingBalance = computed(() => walletStore.getPendingBalance);
 const lockedBalance = computed(() => walletStore.getLockedBalance);
 
 const isLoading = computed(() => walletStore.loading);
-
-const currency = 'FCFA';
-
-// Formater les montants
-const formatAmount = (amount: number): string => {
-  return amount.toLocaleString() + ' ' + currency;
-};
 
 // Charger le solde au montage du composant
 onMounted(async () => {
@@ -62,7 +56,7 @@ const refreshBalance = async () => {
           <WalletIcon class="w-5 h-5 text-secondary mr-2" />
           <h3 class="text-lg text-white font-bold">Solde Total</h3>
         </div>
-        <p class="text-3xl font-bold text-secondary">{{ formatAmount(totalBalance) }}</p>
+        <p class="text-3xl font-bold text-secondary">{{ formatFCFA(totalBalance) }}</p>
         <p class="text-sm text-gray-400 mt-1">Tous tes fonds combinés</p>
       </div>
 
@@ -72,7 +66,7 @@ const refreshBalance = async () => {
           <CreditCardIcon class="w-5 h-5 text-accent mr-2" />
           <h3 class="text-lg text-white font-bold">Disponible</h3>
         </div>
-        <p class="text-3xl font-bold text-accent">{{ formatAmount(availableBalance) }}</p>
+        <p class="text-3xl font-bold text-accent">{{ formatFCFA(availableBalance) }}</p>
         <p class="text-sm text-gray-400 mt-1">Prêt à être utilisé pour les duels</p>
       </div>
 
@@ -82,7 +76,7 @@ const refreshBalance = async () => {
           <ClockIcon class="w-5 h-5 text-yellow-500 mr-2" />
           <h3 class="text-lg text-white font-bold">En attente</h3>
         </div>
-        <p class="text-3xl font-bold text-yellow-500">{{ formatAmount(pendingBalance) }}</p>
+        <p class="text-3xl font-bold text-yellow-500">{{ formatFCFA(pendingBalance) }}</p>
         <p class="text-sm text-gray-400 mt-1">Transactions en cours de traitement</p>
       </div>
 
@@ -92,7 +86,7 @@ const refreshBalance = async () => {
           <LockIcon class="w-5 h-5 text-gray-400 mr-2" />
           <h3 class="text-lg text-white font-bold">Verrouillé</h3>
         </div>
-        <p class="text-3xl font-bold text-gray-400">{{ formatAmount(lockedBalance) }}</p>
+        <p class="text-3xl font-bold text-gray-400">{{ formatFCFA(lockedBalance) }}</p>
         <p class="text-sm text-gray-400 mt-1">Engagé dans des duels en cours</p>
       </div>
     </div>
