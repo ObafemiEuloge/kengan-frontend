@@ -1,16 +1,20 @@
 export interface User {
-    userId: number;
+    id: number;
     username: string;
     email: string;
     avatar: string;
-    balance: number;
     level: number;
     xp: number;
-    xpToNextLevel: number;
+    xp_to_next_level: number;
     stats: UserStats;
-    registrationDate: string;
-    currentRank: UserRank;
+    registration_date: string;
+    current_rank: UserRank;
     badges: UserBadge[];
+    is_email_verified?: boolean;
+    roles?: string[];
+    is_superuser?: boolean;
+    is_staff?: boolean;
+    balance?: number;
   }
   
   export interface UserStats {

@@ -1,199 +1,174 @@
 // src/pages/admin/AdminLoginView.vue
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, computed } from 'vue';
 import { useRouter } from 'vue-router';
-import { useAdminAuthStore } from '../../store/admin/adminAuthStore';
+import { useAuthStore } from '../../store/auth/authStore';
+import { EyeIcon, EyeOffIcon, ShieldIcon } from 'lucide-vue-next';
 import BaseInput from '../../components/ui/BaseInput.vue';
 import BaseButton from '../../components/ui/BaseButton.vue';
 import BaseAlert from '../../components/ui/BaseAlert.vue';
-import { Lock, Mail } from 'lucide-vue-next';
 
 const router = useRouter();
-const adminAuthStore = useAdminAuthStore();
+const authStore = useAuthStore();
 
-const credentials = ref({
-  email: '',
-  password: ''
-});
-
-const errors = ref({
-  email: '',
-  password: '',
-  global: ''
-});
-
-const isSubmitting = ref(false);
+// État du formulaire
+const email = ref('');
+const password = ref('');
+const showPassword = ref(false);
 const rememberMe = ref(false);
+const isSubmitting = ref(false);
+const errorMessage = ref('');
 
-onMounted(() => {
-  // Vérifier si l'admin est déjà connecté
-  adminAuthStore.checkAuth();
-  
-  if (adminAuthStore.isAuthenticated) {
-    router.push('/admin');
-  }
+// Calcul du statut de validation
+const isFormValid = computed(() => {
+  return email.value.trim() !== '' && password.value.trim() !== '';
 });
 
-const validateForm = (): boolean => {
-  let isValid = true;
-  errors.value = {
-    email: '',
-    password: '',
-    global: ''
-  };
-  
-  // Validation email
-  if (!credentials.value.email) {
-    errors.value.email = 'L\'email est requis';
-    isValid = false;
-  } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(credentials.value.email)) {
-    errors.value.email = 'Veuillez entrer un email valide';
-    isValid = false;
-  }
-  
-  // Validation mot de passe
-  if (!credentials.value.password) {
-    errors.value.password = 'Le mot de passe est requis';
-    isValid = false;
-  }
-  
-  return isValid;
-};
+// Soumission du formulaire
+const submitForm = async () => {
+  if (!isFormValid.value || isSubmitting.value) return;
 
-const login = async () => {
-  if (!validateForm()) return;
-  
+  errorMessage.value = '';
   isSubmitting.value = true;
-  errors.value.global = '';
-  
+
   try {
-    const success = await adminAuthStore.login(
-      credentials.value.email,
-      credentials.value.password
-    );
+    console.log('Tentative de connexion administrateur avec:', email.value);
     
+    // Utiliser l'endpoint de connexion standard mais avec vérification du rôle côté frontend
+    const success = await authStore.login(email.value, password.value);
+    console.log('Résultat de la connexion:', success);
+
     if (success) {
-      router.push('/admin');
+      console.log('Connexion réussie, vérification des droits admin...');
+      
+      // Vérification explicite des droits admin
+      const isAdmin = await authStore.checkAdminRights();
+      console.log('Vérification des droits admin après connexion:', isAdmin);
+      
+      if (isAdmin) {
+        console.log('Droits administrateur confirmés, redirection vers le tableau de bord admin');
+        // Redirection vers le tableau de bord admin
+        router.push('/admin');
+      } else {
+        console.error('Utilisateur authentifié mais sans droits administrateur');
+        // Si l'utilisateur n'est pas admin, déconnexion et affichage d'erreur
+        await authStore.logout();
+        errorMessage.value = 'Vous n\'avez pas les autorisations nécessaires pour accéder à cette section. Seuls les administrateurs peuvent se connecter ici.';
+      }
     } else {
-      errors.value.global = adminAuthStore.error || 'Échec de connexion. Veuillez réessayer.';
+      console.error('Échec de la connexion:', authStore.error);
+      errorMessage.value = authStore.error || 'Identifiants incorrects. Veuillez réessayer.';
     }
   } catch (error: any) {
-    errors.value.global = error.message || 'Une erreur s\'est produite lors de la connexion';
+    console.error('Exception lors de la tentative de connexion admin:', error);
+    errorMessage.value = error.message || 'Une erreur est survenue. Veuillez réessayer.';
   } finally {
     isSubmitting.value = false;
   }
 };
+
+// Fonction pour basculer l'affichage du mot de passe
+const togglePasswordVisibility = () => {
+  showPassword.value = !showPassword.value;
+};
+
+// Navigation vers la page principale
+const navigateToMain = () => {
+  router.push('/');
+};
 </script>
 
 <template>
-  <div class="min-h-screen bg-gradient-primary flex items-center justify-center p-4">
+  <div class="min-h-screen bg-primary flex items-center justify-center p-4">
     <div class="w-full max-w-md">
-      <!-- Logo et titre -->
-      <div class="text-center mb-10">
-        <img src="/images/logo.webp" alt="KENGAN Admin" class="h-16 mx-auto mb-4" />
-        <h1 class="text-3xl font-heading text-white">Administration <span class="text-accent">KENGAN</span></h1>
-        <p class="text-neutral-light mt-2">Connectez-vous pour gérer la plateforme</p>
+      <!-- Logo & Titre -->
+      <div class="text-center mb-8">
+        <div class="flex justify-center mb-4">
+          <ShieldIcon class="w-16 h-16 text-accent" />
+        </div>
+        <h1 class="text-3xl font-heading text-white">ADMINISTRATION KENGAN</h1>
+        <p class="text-neutral-light mt-2">Accès réservé aux administrateurs</p>
       </div>
       
-      <!-- Formulaire de connexion -->
-      <div class="bg-white rounded-lg shadow-lg p-8">
-        <h2 class="text-xl font-heading text-gray-800 mb-6">Connexion administrateur</h2>
+      <!-- Formulaire -->
+      <div class="bg-primary-light rounded-xl shadow-2xl p-8 border border-gray-800">
+        <h2 class="font-heading text-xl text-white mb-6">CONNEXION ADMINISTRATEUR</h2>
         
-        <form @submit.prevent="login" class="space-y-6">
-          <!-- Alerte d'erreur globale -->
-          <BaseAlert 
-            v-if="errors.global" 
-            type="error" 
-            dismissible
-          >
-            {{ errors.global }}
-          </BaseAlert>
-          
+        <!-- Message d'erreur -->
+        <BaseAlert
+          v-if="errorMessage"
+          type="error"
+          dismissible
+          class="mb-6"
+          @dismiss="errorMessage = ''"
+        >
+          {{ errorMessage }}
+        </BaseAlert>
+        
+        <form @submit.prevent="submitForm" class="space-y-6">
           <!-- Email -->
-          <div class="space-y-1">
-            <label for="email" class="block text-sm font-medium text-gray-700">Email</label>
-            <div class="relative">
-              <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <Mail class="h-5 w-5 text-gray-400" />
-              </div>
-              <input
-                id="email"
-                v-model="credentials.email"
-                type="email"
-                autocomplete="email"
-                required
-                class="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-secondary focus:border-secondary"
-                :class="{ 'border-red-500': errors.email }"
-                placeholder="admin@kengan.com"
-                :disabled="isSubmitting"
-              />
-            </div>
-            <p v-if="errors.email" class="text-red-600 text-xs mt-1">{{ errors.email }}</p>
-          </div>
+          <BaseInput
+            v-model="email"
+            label="Email"
+            type="email"
+            placeholder="admin@kengan.com"
+            :disabled="isSubmitting"
+            autocomplete="email"
+          />
           
           <!-- Mot de passe -->
-          <div class="space-y-1">
-            <label for="password" class="block text-sm font-medium text-gray-700">Mot de passe</label>
-            <div class="relative">
-              <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <Lock class="h-5 w-5 text-gray-400" />
-              </div>
-              <input
-                id="password"
-                v-model="credentials.password"
-                type="password"
-                autocomplete="current-password"
-                required
-                class="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-secondary focus:border-secondary"
-                :class="{ 'border-red-500': errors.password }"
-                placeholder="••••••••"
-                :disabled="isSubmitting"
-              />
-            </div>
-            <p v-if="errors.password" class="text-red-600 text-xs mt-1">{{ errors.password }}</p>
-          </div>
-          
-          <!-- Options de connexion -->
-          <div class="flex items-center justify-between">
-            <div class="flex items-center">
-              <input
-                id="remember-me"
-                v-model="rememberMe"
-                type="checkbox"
-                class="h-4 w-4 text-secondary focus:ring-secondary border-gray-300 rounded"
-              />
-              <label for="remember-me" class="ml-2 block text-sm text-gray-700">
-                Se souvenir de moi
-              </label>
-            </div>
-            
-            <div class="text-sm">
-              <a href="#" class="font-medium text-secondary hover:text-secondary-dark">
-                Mot de passe oublié?
-              </a>
-            </div>
-          </div>
-          
-          <!-- Bouton de connexion -->
-          <div>
-            <BaseButton
-              type="submit"
-              variant="primary"
-              size="lg"
-              class="w-full"
+          <div class="relative">
+            <BaseInput
+              v-model="password"
+              :type="showPassword ? 'text' : 'password'"
+              label="Mot de passe"
+              placeholder="Votre mot de passe"
               :disabled="isSubmitting"
+              autocomplete="current-password"
+            />
+            <button 
+              type="button"
+              class="absolute right-3 top-[38px] text-neutral-light opacity-70 hover:opacity-100"
+              @click="togglePasswordVisibility"
             >
-              <span v-if="isSubmitting">Connexion en cours...</span>
-              <span v-else>Se connecter</span>
-            </BaseButton>
+              <EyeIcon v-if="showPassword" class="w-5 h-5" />
+              <EyeOffIcon v-else class="w-5 h-5" />
+            </button>
           </div>
+          
+          <!-- Options -->
+          <div class="flex items-center justify-between">
+            <label class="flex items-center">
+              <input 
+                type="checkbox" 
+                v-model="rememberMe"
+                class="form-checkbox h-4 w-4 text-accent rounded border-gray-600 bg-gray-700"
+              />
+              <span class="ml-2 text-sm text-neutral-light">Rester connecté</span>
+            </label>
+          </div>
+          
+          <!-- Bouton -->
+          <BaseButton
+            type="submit"
+            variant="secondary"
+            class="w-full"
+            :disabled="!isFormValid || isSubmitting"
+          >
+            <span v-if="isSubmitting">CONNEXION EN COURS...</span>
+            <span v-else>SE CONNECTER</span>
+          </BaseButton>
         </form>
-      </div>
-      
-      <!-- Note d'information -->
-      <div class="mt-6 text-center text-sm text-neutral-light">
-        <p>Pour l'environnement de développement:</p>
-        <p class="mt-1">Email: <span class="text-accent">admin@kengan.com</span> | Mot de passe: <span class="text-accent">admin123</span></p>
+        
+        <!-- Lien vers l'accueil -->
+        <div class="text-center mt-6">
+          <button 
+            class="text-neutral-light hover:text-white text-sm"
+            @click="navigateToMain"
+          >
+            Retourner à l'accueil
+          </button>
+        </div>
       </div>
     </div>
   </div>

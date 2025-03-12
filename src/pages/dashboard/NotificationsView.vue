@@ -1,20 +1,32 @@
 // src/pages/dashboard/NotificationsView.vue
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted, computed, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { useNotificationStore } from '../../store/notification/notificationStore';
 import DashboardLayout from '../../layouts/DashboardLayout.vue';
 import BaseCard from '../../components/ui/BaseCard.vue';
 import BaseButton from '../../components/ui/BaseButton.vue';
 import BaseBadge from '../../components/ui/BaseBadge.vue';
+import BaseAlert from '../../components/ui/BaseAlert.vue';
 import { BellOff, Check, Trash2, RefreshCw, CheckCheck } from 'lucide-vue-next';
 
 const router = useRouter();
 const notificationStore = useNotificationStore();
 
 const isLoading = ref(true);
+const errorMessage = ref("");
 const allNotifications = computed(() => notificationStore.notifications);
 const hasUnreadNotifications = computed(() => notificationStore.unreadCount > 0);
+
+// Surveiller les erreurs du store
+watch(() => notificationStore.error, (newError) => {
+  if (newError) {
+    errorMessage.value = newError;
+    console.error('Erreur du store de notifications:', newError);
+  } else {
+    errorMessage.value = "";
+  }
+});
 
 // Filtrer les notifications par type
 const filterNotifications = (type: string | null) => {
@@ -32,11 +44,15 @@ const isProcessing = ref(false);
 // Charger les notifications
 onMounted(async () => {
   isLoading.value = true;
+  errorMessage.value = "";
   
   try {
+    console.log('Vue montée, chargement des notifications...');
     await notificationStore.fetchNotifications();
-  } catch (error) {
-    console.error('Erreur lors du chargement des notifications:', error);
+    console.log('Notifications chargées:', notificationStore.notifications);
+  } catch (error: any) {
+    console.error('Erreur dans le composant lors du chargement des notifications:', error);
+    errorMessage.value = error.message || "Erreur lors du chargement des notifications";
   } finally {
     isLoading.value = false;
   }
@@ -48,8 +64,9 @@ const markAsRead = async (notificationId: number) => {
   
   try {
     await notificationStore.markAsRead(notificationId);
-  } catch (error) {
+  } catch (error: any) {
     console.error('Erreur lors du marquage de la notification comme lue:', error);
+    errorMessage.value = error.message || "Erreur lors du marquage de la notification comme lue";
   } finally {
     isProcessing.value = false;
   }
@@ -61,8 +78,9 @@ const markAllAsRead = async () => {
   
   try {
     await notificationStore.markAllAsRead();
-  } catch (error) {
+  } catch (error: any) {
     console.error('Erreur lors du marquage de toutes les notifications comme lues:', error);
+    errorMessage.value = error.message || "Erreur lors du marquage de toutes les notifications comme lues";
   } finally {
     isProcessing.value = false;
   }
@@ -74,10 +92,27 @@ const deleteNotification = async (notificationId: number) => {
   
   try {
     await notificationStore.deleteNotification(notificationId);
-  } catch (error) {
+  } catch (error: any) {
     console.error('Erreur lors de la suppression de la notification:', error);
+    errorMessage.value = error.message || "Erreur lors de la suppression de la notification";
   } finally {
     isProcessing.value = false;
+  }
+};
+
+// Rafraîchir les notifications
+const refreshNotifications = async () => {
+  isLoading.value = true;
+  errorMessage.value = "";
+  
+  try {
+    console.log('Rafraîchissement des notifications...');
+    await notificationStore.fetchNotifications();
+  } catch (error: any) {
+    console.error('Erreur lors du rafraîchissement des notifications:', error);
+    errorMessage.value = error.message || "Erreur lors du rafraîchissement des notifications";
+  } finally {
+    isLoading.value = false;
   }
 };
 
@@ -167,6 +202,34 @@ const getNotificationTypeText = (type: string) => {
         </div>
       </div>
       
+      <!-- Message d'erreur -->
+      <BaseAlert
+        v-if="errorMessage"
+        type="error"
+        class="mb-4"
+        dismissible
+        @dismiss="errorMessage = ''"
+      >
+        {{ errorMessage }}
+      </BaseAlert>
+      
+      <!-- Informations sur la connexion WebSocket -->
+      <BaseAlert
+        v-if="!notificationStore.isWebSocketConnected"
+        type="warning"
+        class="mb-4"
+      >
+        Connexion WebSocket non établie. Certaines fonctionnalités en temps réel peuvent ne pas fonctionner.
+        <BaseButton 
+          variant="text" 
+          size="sm"
+          @click="notificationStore.connectWebSocket"
+          class="ml-2"
+        >
+          Reconnecter
+        </BaseButton>
+      </BaseAlert>
+      
       <!-- Loader -->
       <div v-if="isLoading" class="flex justify-center items-center h-64">
         <div class="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-secondary"></div>
@@ -219,12 +282,24 @@ const getNotificationTypeText = (type: string) => {
             <BaseButton 
               variant="text" 
               size="sm"
-              @click="notificationStore.fetchNotifications()"
+              @click="refreshNotifications"
               :disabled="isProcessing"
             >
-              <RefreshCw class="w-4 h-4 mr-1" />
+              <RefreshCw class="w-4 h-4 mr-1" :class="{ 'animate-spin': isProcessing }" />
               Actualiser
             </BaseButton>
+          </div>
+        </div>
+        
+        <!-- Statistiques des notifications -->
+        <div class="mb-4 p-4 bg-primary-light rounded-lg">
+          <div class="flex justify-between">
+            <div>
+              <p class="text-sm text-gray-400">Total des notifications: <span class="text-white">{{ allNotifications.length }}</span></p>
+            </div>
+            <div>
+              <p class="text-sm text-gray-400">Non lues: <span class="text-secondary font-bold">{{ notificationStore.unreadCount }}</span></p>
+            </div>
           </div>
         </div>
         

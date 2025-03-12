@@ -1,6 +1,6 @@
 // src/components/admin/common/AdminNotifications.vue
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue';
+import { ref, onMounted,onUnmounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
 
 const emit = defineEmits(['update-unread-count', 'close']);

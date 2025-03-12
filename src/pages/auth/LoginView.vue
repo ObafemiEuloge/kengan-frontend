@@ -54,7 +54,11 @@ const submitForm = async () => {
   formError.value = '';
   
   try {
-    // Appel à l'API via le store (en mode développement, utilise des données mockées)
+    // Avant d'appeler authStore.login, assurons-nous de supprimer les tokens existants
+    localStorage.removeItem('token');
+    localStorage.removeItem('refreshToken');
+    
+    // Appel à l'API via le store
     const success = await authStore.login(form.value.email, form.value.password);
     
     if (success) {
@@ -62,10 +66,29 @@ const submitForm = async () => {
       router.push('/dashboard');
     } else {
       // En cas d'erreur retournée par le store
-      formError.value = authStore.error || 'Échec de la connexion. Veuillez réessayer.';
+      if (authStore.error?.includes('token')) {
+        formError.value = "Problème d'authentification. Vérifiez vos identifiants.";
+      } else {
+        formError.value = authStore.error || 'Échec de la connexion. Veuillez réessayer.';
+      }
     }
   } catch (error: any) {
-    formError.value = error.message || 'Une erreur est survenue. Veuillez réessayer.';
+    // Gestion des erreurs spécifiques
+    if (error.details) {
+      // Nous avons des erreurs de champs spécifiques
+      if (error.details.username) {
+        formError.value = `Email: ${error.details.username}`;
+      } else if (error.details.password) {
+        formError.value = `Mot de passe: ${error.details.password}`;
+      } else if (error.details.non_field_errors) {
+        formError.value = error.details.non_field_errors;
+      } else {
+        formError.value = error.message || 'Une erreur est survenue. Veuillez réessayer.';
+      }
+    } else {
+      formError.value = error.message || 'Une erreur est survenue. Veuillez réessayer.';
+    }
+    console.error('Erreur de connexion:', error);
   } finally {
     isSubmitting.value = false;
   }

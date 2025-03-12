@@ -1,6 +1,6 @@
 import api from './api';
 
-interface Notification {
+export interface Notification {
   id: number;
   title: string;
   message: string;
@@ -8,77 +8,65 @@ interface Notification {
   isRead: boolean;
   createdAt: string;
   link?: string;
+  data?: any;
 }
-
-// Simuler des notifications pour le développement
-const mockNotifications: Notification[] = [
-  {
-    id: 1,
-    title: 'Bienvenue sur KENGAN!',
-    message: 'Nous sommes ravis de vous accueillir dans l\'arène! Commencez par explorer le mode démo.',
-    type: 'info',
-    isRead: false,
-    createdAt: new Date(Date.now() - 3600000).toISOString(),
-    link: '/demo'
-  },
-  {
-    id: 2,
-    title: 'Bonus de bienvenue!',
-    message: 'Vous avez reçu 1000 FCFA de crédit de bienvenue. Utilisez-les pour participer à vos premiers duels!',
-    type: 'success',
-    isRead: false,
-    createdAt: new Date(Date.now() - 7200000).toISOString(),
-    link: '/wallet'
-  }
-];
 
 export const notificationService = {
   async getNotifications(): Promise<Notification[]> {
-    // En mode développement, utiliser les notifications mockées
-    if (import.meta.env.DEV) {
-      await delay(500); // Simuler une latence
-      return mockNotifications;
+    try {
+      const response = await api.get('/notifications/');
+      console.log('Réponse API notifications:', response);
+      
+      // Vérifier si la réponse est un tableau ou un objet avec une propriété results
+      let notificationsData = [];
+      
+      if (Array.isArray(response)) {
+        notificationsData = response;
+      } else if (response && typeof response === 'object') {
+        // Cas où l'API renvoie un objet avec results ou data contenant les notifications
+        if (Array.isArray(response.results)) {
+          notificationsData = response.results;
+        } else if (Array.isArray(response.data)) {
+          notificationsData = response.data;
+        } else if (response.notifications && Array.isArray(response.notifications)) {
+          notificationsData = response.notifications;
+        } else {
+          console.warn('Format de réponse API inattendu:', response);
+          return [];
+        }
+      } else {
+        console.warn('Réponse API non reconnue:', response);
+        return [];
+      }
+      
+      // Transformer la réponse API pour correspondre à notre interface
+      return notificationsData.map((item: any) => ({
+        id: item.id,
+        title: item.title,
+        message: item.message,
+        type: item.type,
+        isRead: item.is_read || false,
+        createdAt: item.created_at,
+        link: item.link || undefined,
+        data: item.data || undefined
+      }));
+    } catch (error) {
+      console.error('Erreur lors de la récupération des notifications:', error);
+      return [];
     }
-    
-    // En production, appeler l'API
-    return api.get('/notifications');
   },
   
   async markAsRead(notificationId: number): Promise<void> {
-    // En mode développement, simuler le marquage comme lu
-    if (import.meta.env.DEV) {
-      await delay(300); // Simuler une latence
-      return;
-    }
-    
-    // En production, appeler l'API
-    return api.post(`/notifications/${notificationId}/read`);
+    console.log(`Marquage comme lu de la notification ${notificationId} avec méthode PUT`);
+    return api.put(`/notifications/${notificationId}/read/`);
   },
   
   async markAllAsRead(): Promise<void> {
-    // En mode développement, simuler le marquage de toutes comme lues
-    if (import.meta.env.DEV) {
-      await delay(300); // Simuler une latence
-      return;
-    }
-    
-    // En production, appeler l'API
-    return api.post('/notifications/read-all');
+    console.log('Marquage de toutes les notifications comme lues avec méthode PUT');
+    return api.put('/notifications/read-all/');
   },
   
   async deleteNotification(notificationId: number): Promise<void> {
-    // En mode développement, simuler la suppression
-    if (import.meta.env.DEV) {
-      await delay(300); // Simuler une latence
-      return;
-    }
-    
-    // En production, appeler l'API
-    return api.delete(`/notifications/${notificationId}`);
+    return api.delete(`/notifications/${notificationId}/`);
   }
 };
-
-// Fonction de délai utilitaire
-function delay(ms: number): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}

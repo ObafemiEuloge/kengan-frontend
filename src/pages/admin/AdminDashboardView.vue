@@ -2,6 +2,9 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue';
 import { useRouter } from 'vue-router';
+import { useAuthStore } from '../../store/auth/authStore';
+import { adminService } from '../../services/adminService';
+import type { AdminDashboardStats } from '../../services/adminService';
 import { 
   Users, 
   DollarSign, 
@@ -12,114 +15,153 @@ import {
   Clock,
   CheckCircle,
   XCircle,
-  AlertTriangle
+  AlertTriangle,
+  Bell
 } from 'lucide-vue-next';
 
 // Composants de tableau de bord que nous allons implémenter séparément
-import AdminStatsOverview from '../../components/admin/dashboard/AdminStatsOverview.vue';
-import RealtimeUsersChart from '../../components/admin/dashboard/RealtimeUsersChart.vue';
-import FinancialSummary from '../../components/admin/dashboard/FinancialSummary.vue';
-import RecentActivitiesPanel from '../../components/admin/dashboard/RecentActivitiesPanel.vue';
-import QuickActionsPanel from '../../components/admin/dashboard/QuickActionsPanel.vue';
+// import AdminStatsOverview from '../../components/admin/dashboard/AdminStatsOverview.vue';
+// import RealtimeUsersChart from '../../components/admin/dashboard/RealtimeUsersChart.vue';
+// import FinancialSummary from '../../components/admin/dashboard/FinancialSummary.vue';
+// import RecentActivitiesPanel from '../../components/admin/dashboard/RecentActivitiesPanel.vue';
+// import QuickActionsPanel from '../../components/admin/dashboard/QuickActionsPanel.vue';
 
 const router = useRouter();
+const authStore = useAuthStore();
 
-// Statistiques du tableau de bord
-const stats = ref({
-  usersTotal: 5893,
-  usersActive: 2456,
-  usersActivePercentage: 41.7,
-  usersNewToday: 87,
-  usersGrowthRate: 12.4,
+// Vérification des droits admin
+const verifyAdminRights = async () => {
+  console.log('Vérification des droits admin dans le dashboard admin');
+  try {
+    const isAdmin = await authStore.checkAdminRights();
+    console.log('Résultat de la vérification des droits admin:', isAdmin);
+    
+    if (!isAdmin) {
+      console.error('Accès non autorisé au dashboard admin');
+      // Utilisation d'un délai pour éviter les redirections trop rapides
+      setTimeout(() => {
+        router.replace({ 
+          name: 'admin-login', 
+          query: { denied: 'true' } 
+        });
+      }, 300);
+    }
+  } catch (error) {
+    console.error('Erreur lors de la vérification des droits admin:', error);
+    // Utilisation d'un délai pour éviter les redirections trop rapides
+    setTimeout(() => {
+      router.replace({ 
+        name: 'admin-login', 
+        query: { error: 'true' } 
+      });
+    }, 300);
+  }
+};
+
+// Données du tableau de bord
+const isLoading = ref(true);
+const stats = ref<AdminDashboardStats>({
+  usersTotal: 0,
+  usersActive: 0,
+  usersActivePercentage: 0,
+  usersNewToday: 0,
+  usersGrowthRate: 0,
   
-  duelsTotal: 12589,
-  duelsToday: 342,
-  duelsGrowthRate: 8.7,
+  duelsTotal: 0,
+  duelsToday: 0,
+  duelsGrowthRate: 0,
   
-  revenueTotal: '26.4M FCFA',
-  revenueToday: '756K FCFA',
-  revenueGrowthRate: 15.2,
+  revenueTotal: '0 FCFA',
+  revenueToday: '0 FCFA',
+  revenueGrowthRate: 0,
   
-  questionsTotal: 5240,
-  categoriesTotal: 14
+  questionsTotal: 0,
+  categoriesTotal: 0
 });
 
 // Informations sur les utilisateurs connectés
 const connectedUsers = ref({
-  current: 342,
-  peak: 578,
-  average: 310
+  current: 0,
+  peak: 0,
+  average: 0
 });
 
-// Données de revenus pour le graphique
-const revenueData = ref([
-  { date: '2023-01', amount: 1200000 },
-  { date: '2023-02', amount: 1350000 },
-  { date: '2023-03', amount: 1450000 },
-  { date: '2023-04', amount: 1400000 },
-  { date: '2023-05', amount: 1600000 },
-  { date: '2023-06', amount: 1750000 },
-  { date: '2023-07', amount: 1900000 },
-  { date: '2023-08', amount: 2100000 },
-  { date: '2023-09', amount: 2300000 },
-  { date: '2023-10', amount: 2500000 },
-  { date: '2023-11', amount: 2700000 },
-  { date: '2023-12', amount: 3000000 },
-  { date: '2024-01', amount: 3200000 },
-  { date: '2024-02', amount: 3500000 },
-]);
+// Notification de bienvenue admin
+const showWelcomeNotification = ref(true);
+const adminUsername = computed(() => authStore.user?.username || 'Administrateur');
+
+// Données de revenus pour le graphique (pour utilisation future)
+// const revenueData = ref([
+//   { date: '2023-01', amount: 1200000 },
+//   // ... autres données
+// ]);
+
+// Définir une interface pour les activités récentes
+interface RecentActivity {
+  id: number;
+  type: 'user_signup' | 'transaction' | 'duel' | 'alert' | 'question';
+  description: string;
+  time: string;
+  status: 'success' | 'pending' | 'danger';
+  icon?: any; // On utilisera l'icône dynamiquement
+}
 
 // Activités récentes
-const recentActivities = ref([
-  {
-    id: 1,
-    type: 'user_signup',
-    description: 'Nouvel utilisateur inscrit: DragonBallZ_Fan',
-    time: '2 minutes',
-    status: 'success',
-    icon: Users
-  },
-  {
-    id: 2,
-    type: 'transaction',
-    description: 'Rechargement de 5,000 FCFA par MangaKing',
-    time: '15 minutes',
-    status: 'success',
-    icon: DollarSign
-  },
-  {
-    id: 3,
-    type: 'duel',
-    description: 'Duel #3456 terminé entre AnimeFighter et NarutoFan99',
-    time: '32 minutes',
-    status: 'success',
-    icon: Swords
-  },
-  {
-    id: 4,
-    type: 'transaction',
-    description: 'Demande de retrait de 25,000 FCFA par OnePieceGuru',
-    time: '45 minutes',
-    status: 'pending',
-    icon: DollarSign
-  },
-  {
-    id: 5,
-    type: 'alert',
-    description: 'Tentative de fraude détectée pour l\'utilisateur HxH_Lover',
-    time: '1 heure',
-    status: 'danger',
-    icon: AlertTriangle
-  },
-  {
-    id: 6,
-    type: 'question',
-    description: '10 nouvelles questions ajoutées dans la catégorie "Seinen Classics"',
-    time: '3 heures',
-    status: 'success',
-    icon: HelpCircle
+const recentActivities = ref<RecentActivity[]>([]);
+
+// Chargement des données du tableau de bord
+const loadDashboardData = async () => {
+  isLoading.value = true;
+  
+  try {
+    console.log('Début du chargement des données du tableau de bord');
+    
+    // Récupération des statistiques du tableau de bord
+    const dashboardStats = await adminService.getDashboardStats();
+    stats.value = dashboardStats;
+    
+    console.log('Statistiques récupérées:', stats.value);
+    
+    // Si les stats principales sont vides, récupérer au moins le nombre d'utilisateurs
+    if (stats.value.usersTotal === 0) {
+      console.log('Tentative de récupération du nombre d\'utilisateurs car stats vides');
+      const usersCount = await adminService.getUsersCount();
+      console.log('Nombre d\'utilisateurs récupéré:', usersCount);
+      
+      if (usersCount > 0) {
+        stats.value.usersTotal = usersCount;
+      }
+    }
+    
+    // Récupération des activités récentes
+    const activities = await adminService.getRecentActivities();
+    if (activities && activities.length > 0) {
+      recentActivities.value = activities;
+    }
+    
+    console.log('Données du tableau de bord chargées avec succès');
+  } catch (error) {
+    console.error('Erreur lors du chargement des données du tableau de bord:', error);
+  } finally {
+    isLoading.value = false;
   }
-]);
+};
+
+// Fermeture de la notification de bienvenue
+const dismissWelcomeNotification = async () => {
+  showWelcomeNotification.value = false;
+  
+  // Marquer la notification comme lue dans le backend
+  await adminService.markAdminWelcomeNotificationAsRead();
+};
+
+onMounted(async () => {
+  // Vérifier les droits admin au chargement
+  await verifyAdminRights();
+  
+  // Charger les données du dashboard
+  await loadDashboardData();
+});
 
 // Meilleures catégories de questions
 const topCategories = ref([
@@ -147,32 +189,6 @@ const systemAlerts = ref([
   }
 ]);
 
-// Données graphique utilisateurs
-const userData = ref({
-  labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
-  datasets: [
-    {
-      label: 'Nouveaux utilisateurs',
-      data: [65, 78, 90, 105, 112, 125, 135, 162, 185, 196, 215, 235],
-      borderColor: '#E63946',
-      backgroundColor: 'rgba(230, 57, 70, 0.1)',
-      tension: 0.4
-    },
-    {
-      label: 'Utilisateurs actifs',
-      data: [30, 45, 55, 60, 75, 90, 100, 120, 130, 145, 160, 180],
-      borderColor: '#FFD700',
-      backgroundColor: 'rgba(255, 215, 0, 0.1)',
-      tension: 0.4
-    }
-  ]
-});
-
-onMounted(() => {
-  // Ici, vous pourriez charger les données initiales
-  // ou configurer les mises à jour en temps réel
-});
-
 // Navigation vers les pages détaillées
 const navigateTo = (route: string) => {
   router.push(route);
@@ -182,12 +198,63 @@ const navigateTo = (route: string) => {
 const formatNumber = (num: number): string => {
   return new Intl.NumberFormat('fr-FR').format(num);
 };
+
+// Fonction pour déterminer l'icône à utiliser en fonction du type d'activité
+const getActivityIcon = (type: string) => {
+  switch (type) {
+    case 'user_signup': return Users;
+    case 'transaction': return DollarSign;
+    case 'duel': return Swords;
+    case 'question': return HelpCircle;
+    case 'alert': return AlertTriangle;
+    default: return Bell;
+  }
+};
 </script>
 
 <template>
   <div>
-    <h1 class="text-2xl font-heading text-gray-800 mb-6">Tableau de bord administrateur</h1>
+    <div class="flex justify-between items-center mb-6">
+      <h1 class="text-2xl font-heading text-gray-800">Tableau de bord administrateur</h1>
+      <div class="text-gray-600">
+        Bienvenue, <span class="font-medium text-secondary">{{ adminUsername }}</span>
+      </div>
+    </div>
     
+    <!-- Notification de bienvenue pour les administrateurs -->
+    <div v-if="showWelcomeNotification" 
+         class="bg-secondary/10 border-l-4 border-secondary p-4 mb-6 rounded-r shadow-sm">
+      <div class="flex">
+        <div class="flex-shrink-0">
+          <Bell class="h-5 w-5 text-secondary" />
+        </div>
+        <div class="ml-3">
+          <h3 class="text-sm font-medium text-secondary">
+            Bienvenue dans votre espace administrateur!
+          </h3>
+          <div class="mt-2 text-sm text-gray-700">
+            <p>
+              Vous pouvez désormais gérer les utilisateurs, surveiller les transactions, 
+              maintenir les questions du quiz et plus encore. Explorez les différentes sections
+              à partir de la barre latérale.
+            </p>
+          </div>
+          <div class="mt-3">
+            <button @click="dismissWelcomeNotification" type="button"
+                 class="px-3 py-1.5 bg-secondary text-white text-xs font-medium rounded-md hover:bg-secondary-dark">
+              J'ai compris
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- État de chargement -->
+    <div v-if="isLoading" class="flex justify-center items-center my-12">
+      <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-secondary"></div>
+    </div>
+    
+    <div v-else>
     <!-- Statistiques d'aperçu -->
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
       <!-- Utilisateurs -->
@@ -379,7 +446,7 @@ const formatNumber = (num: number): string => {
                 }"
               >
                 <component 
-                  :is="activity.icon" 
+                    :is="getActivityIcon(activity.type)" 
                   class="w-5 h-5"
                   :class="{
                     'text-green-500': activity.status === 'success',
@@ -560,6 +627,7 @@ const formatNumber = (num: number): string => {
               </tr>
             </tbody>
           </table>
+          </div>
         </div>
       </div>
     </div>

@@ -129,7 +129,7 @@ onMounted(() => {
           <img 
             src="/images/hero-duel.webp" 
             alt="Duel d'otakus KENGAN" 
-            class="w-full h-auto rounded-lg shadow-2xl border-2 border-gray-800"
+            class="w-full h-auto rounded-lg shadow-2xl "
           />
         </div>
       </div>

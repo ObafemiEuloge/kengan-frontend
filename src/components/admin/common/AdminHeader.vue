@@ -2,8 +2,8 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { Menu, Bell } from 'lucide-vue-next';
-import { useAdminAuthStore } from '../../../store/admin/adminAuthStore';
-import AdminNotifications from './AdminNotifications.vue';
+import { useAuthStore } from '../../../store/auth/authStore';
+import AdminNotifications from '../layout/AdminNotifications.vue';
 
 const props = defineProps({
   title: {
@@ -15,8 +15,8 @@ const props = defineProps({
 const emit = defineEmits(['toggle-sidebar']);
 
 const notificationsOpen = ref(false);
-const adminAuthStore = useAdminAuthStore();
-const unreadNotificationsCount = ref(3); // À connecter au store des notifications
+const authStore = useAuthStore();
+const unreadNotificationsCount = ref(0); // Cette valeur sera mise à jour par le composant AdminNotifications
 
 const toggleSidebar = () => {
   emit('toggle-sidebar');
@@ -26,9 +26,14 @@ const toggleNotifications = () => {
   notificationsOpen.value = !notificationsOpen.value;
 };
 
+const closeNotifications = () => {
+  notificationsOpen.value = false;
+};
+
 // Cette fonction sera appelée par le composant enfant AdminNotifications
 const updateUnreadCount = (count: number) => {
   unreadNotificationsCount.value = count;
+  console.log('Nombre de notifications non lues mis à jour:', count);
 };
 </script>
 
@@ -56,7 +61,7 @@ const updateUnreadCount = (count: number) => {
             <Bell class="w-6 h-6 text-gray-600" />
             <span 
               v-if="unreadNotificationsCount > 0"
-              class="absolute top-0 right-0 transform translate-x-1/3 -translate-y-1/3 bg-secondary text-white text-xs rounded-full w-5 h-5 flex items-center justify-center"
+              class="absolute top-0 right-0 transform translate-x-1/4 -translate-y-1/4 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center"
             >
               {{ unreadNotificationsCount > 9 ? '9+' : unreadNotificationsCount }}
             </span>
@@ -66,7 +71,7 @@ const updateUnreadCount = (count: number) => {
           <AdminNotifications 
             v-if="notificationsOpen" 
             @update-unread-count="updateUnreadCount"
-            @close="notificationsOpen = false"
+            @close="closeNotifications"
           />
         </div>
       </div>

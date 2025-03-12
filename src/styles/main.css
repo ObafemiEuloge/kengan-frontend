@@ -38,3 +38,8 @@
   align-items: center;
   justify-content: center;
 }
+
+::selection {
+  background-color: #FFD700; /* Couleur de fond (bleu principal KENGAN) */
+  color: #213547; /* Couleur du texte (accent doré KENGAN) */
+}

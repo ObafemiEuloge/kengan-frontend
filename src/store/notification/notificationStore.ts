@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia';
-import { notificationService } from '../../services/notificationService';
+import { notificationService, Notification } from '../../services/notificationService';
+import { websocketService } from '../../services/websocketService';
 
 interface Notification {
   id: number;
@@ -16,6 +17,7 @@ interface NotificationState {
   unreadCount: number;
   loading: boolean;
   error: string | null;
+  isWebSocketConnected: boolean;
 }
 
 export const useNotificationStore = defineStore('notification', {
@@ -23,7 +25,8 @@ export const useNotificationStore = defineStore('notification', {
     notifications: [],
     unreadCount: 0,
     loading: false,
-    error: null
+    error: null,
+    isWebSocketConnected: false
   }),
   
   getters: {
@@ -42,10 +45,14 @@ export const useNotificationStore = defineStore('notification', {
       this.error = null;
       
       try {
+        console.log('Récupération des notifications...');
         const response = await notificationService.getNotifications();
+        console.log('Notifications récupérées:', response);
+        
         this.notifications = response;
         this.calculateUnreadCount();
       } catch (error: any) {
+        console.error('Erreur fetchNotifications:', error);
         this.error = error.message || 'Erreur lors de la récupération des notifications';
       } finally {
         this.loading = false;
@@ -94,25 +101,54 @@ export const useNotificationStore = defineStore('notification', {
       }
     },
     
-    addNotification(notification: Omit<Notification, 'id' | 'createdAt' | 'isRead'>) {
-      // Pour les notifications en temps réel via socket
-      const newNotification: Notification = {
-        id: Date.now(), // Temporaire jusqu'à sync avec le serveur
-        ...notification,
-        isRead: false,
-        createdAt: new Date().toISOString()
-      };
+    addNotification(notification: Notification) {
+      console.log('Ajout d\'une notification:', notification);
       
-      this.notifications.unshift(newNotification);
+      // Vérifier si la notification existe déjà (cas des WebSockets)
+      const existingIndex = this.notifications.findIndex(n => n.id === notification.id);
+      
+      if (existingIndex >= 0) {
+        // Mettre à jour la notification existante
+        this.notifications[existingIndex] = notification;
+      } else {
+        // Ajouter la nouvelle notification au début du tableau
+        this.notifications.unshift(notification);
+      }
+      
       this.calculateUnreadCount();
     },
     
     calculateUnreadCount() {
-      this.unreadCount = this.notifications.filter(n => !n.isRead).length;
+      const count = this.notifications.filter(n => !n.isRead).length;
+      console.log(`Compteur de notifications non lues calculé: ${count} (sur ${this.notifications.length} notifications)`);
+      this.unreadCount = count;
     },
     
     clearError() {
       this.error = null;
+    },
+    
+    // Méthodes pour la gestion des WebSockets
+    connectWebSocket() {
+      console.log('Connexion WebSocket demandée par le store');
+      websocketService.initNotificationsSocket();
+      this.isWebSocketConnected = true;
+    },
+    
+    disconnectWebSocket() {
+      console.log('Déconnexion WebSocket demandée par le store');
+      websocketService.closeConnection();
+      this.isWebSocketConnected = false;
+    },
+    
+    setWebSocketConnected(status: boolean) {
+      console.log(`Statut de connexion WebSocket mis à jour: ${status}`);
+      this.isWebSocketConnected = status;
+      
+      // Si le socket a été connecté, nous récupérons les notifications
+      if (status) {
+        this.fetchNotifications();
+      }
     }
   }
 });

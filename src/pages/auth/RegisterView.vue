@@ -116,12 +116,13 @@ const submitForm = async () => {
     const success = await authStore.register(
       form.value.username, 
       form.value.email, 
-      form.value.password
+      form.value.password,
+      form.value.confirmPassword
     );
     
     if (success) {
-      // Redirection vers le tableau de bord
-      router.push('/dashboard');
+      // Redirection vers la page de vérification d'email au lieu du tableau de bord
+      router.push('/auth/verify-email');
     } else {
       // En cas d'erreur retournée par le store
       formError.value = authStore.error || 'Échec de l\'inscription. Veuillez réessayer.';
