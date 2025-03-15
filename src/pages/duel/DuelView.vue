@@ -297,10 +297,10 @@ const handleAnswer = async (optionId) => {
     );
     
     // Process answer result
-    answerCorrect.value = result.isCorrect;
+    answerCorrect.value = result.is_correct;
     
     // Animer en fonction du résultat
-    if (result.isCorrect) {
+    if (result.is_correct) {
       animateCorrectAnswer();
     } else {
       animateIncorrectAnswer();

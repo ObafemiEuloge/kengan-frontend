@@ -187,6 +187,10 @@ const statusInfo = computed(() => {
               <span class="text-white">{{ transactionTypeInfo.label }}</span>
               <span class="text-sm text-gray-400">{{ transactionTypeInfo.description }}</span>
             </div>
+            <div v-if="transaction.payment_details_display" class="bg-primary rounded-lg p-4 border border-gray-800">
+              <h3 class="text-white font-medium mb-3">Détails de paiement</h3>
+              <p class="text-gray-300">{{ transaction.payment_details_display }}</p>
+            </div>
           </div>
         </div>
         

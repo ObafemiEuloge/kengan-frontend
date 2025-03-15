@@ -8,10 +8,10 @@ export const mockQuestions: AdminQuestion[] = [
     text: "Quel est le nom du titan d'Eren Yeager dans Attack on Titan?",
     type: 'text',
     options: [
-      { id: 1, text: "Titan Colossal", isCorrect: false },
-      { id: 2, text: "Titan Cuirassé", isCorrect: false },
-      { id: 3, text: "Titan Assaillant", isCorrect: true },
-      { id: 4, text: "Titan Bestial", isCorrect: false }
+      { id: 1, text: "Titan Colossal", is_correct: false },
+      { id: 2, text: "Titan Cuirassé", is_correct: false },
+      { id: 3, text: "Titan Assaillant", is_correct: true },
+      { id: 4, text: "Titan Bestial", is_correct: false }
     ],
     categoryId: 1,
     difficulty: 'medium',
@@ -27,10 +27,10 @@ export const mockQuestions: AdminQuestion[] = [
     type: 'image',
     mediaUrl: '/images/questions/one-piece-crew.jpg',
     options: [
-      { id: 1, text: "Zoro", isCorrect: false },
-      { id: 2, text: "Luffy", isCorrect: true },
-      { id: 3, text: "Sanji", isCorrect: false },
-      { id: 4, text: "Nami", isCorrect: false }
+      { id: 1, text: "Zoro", is_correct: false },
+      { id: 2, text: "Luffy", is_correct: true },
+      { id: 3, text: "Sanji", is_correct: false },
+      { id: 4, text: "Nami", is_correct: false }
     ],
     categoryId: 1,
     difficulty: 'easy',
@@ -46,10 +46,10 @@ export const mockQuestions: AdminQuestion[] = [
     type: 'video',
     mediaUrl: '/videos/questions/naruto-rasengan.mp4',
     options: [
-      { id: 1, text: "Chidori", isCorrect: false },
-      { id: 2, text: "Rasengan", isCorrect: true },
-      { id: 3, text: "Kage Bunshin", isCorrect: false },
-      { id: 4, text: "Sexy Jutsu", isCorrect: false }
+      { id: 1, text: "Chidori", is_correct: false },
+      { id: 2, text: "Rasengan", is_correct: true },
+      { id: 3, text: "Kage Bunshin", is_correct: false },
+      { id: 4, text: "Sexy Jutsu", is_correct: false }
     ],
     categoryId: 1,
     difficulty: 'medium',
@@ -65,10 +65,10 @@ export const mockQuestions: AdminQuestion[] = [
     type: 'audio',
     mediaUrl: '/audio/questions/mha-opening.mp3',
     options: [
-      { id: 1, text: "Peace Sign", isCorrect: true },
-      { id: 2, text: "The Day", isCorrect: false },
-      { id: 3, text: "Odd Future", isCorrect: false },
-      { id: 4, text: "Polaris", isCorrect: false }
+      { id: 1, text: "Peace Sign", is_correct: true },
+      { id: 2, text: "The Day", is_correct: false },
+      { id: 3, text: "Odd Future", is_correct: false },
+      { id: 4, text: "Polaris", is_correct: false }
     ],
     categoryId: 3,
     difficulty: 'hard',
@@ -83,10 +83,10 @@ export const mockQuestions: AdminQuestion[] = [
     text: "Qui est l'auteur du manga Death Note?",
     type: 'text',
     options: [
-      { id: 1, text: "Masashi Kishimoto", isCorrect: false },
-      { id: 2, text: "Tite Kubo", isCorrect: false },
-      { id: 3, text: "Tsugumi Ohba", isCorrect: true },
-      { id: 4, text: "Eiichiro Oda", isCorrect: false }
+      { id: 1, text: "Masashi Kishimoto", is_correct: false },
+      { id: 2, text: "Tite Kubo", is_correct: false },
+      { id: 3, text: "Tsugumi Ohba", is_correct: true },
+      { id: 4, text: "Eiichiro Oda", is_correct: false }
     ],
     categoryId: 2,
     difficulty: 'medium',
@@ -102,10 +102,10 @@ export const mockQuestions: AdminQuestion[] = [
     type: 'image',
     mediaUrl: '/images/questions/demon-slayer.jpg',
     options: [
-      { id: 1, text: "Respiration de l'Eau", isCorrect: false },
-      { id: 2, text: "Respiration du Soleil", isCorrect: true },
-      { id: 3, text: "Respiration du Tonnerre", isCorrect: false },
-      { id: 4, text: "Respiration de la Flamme", isCorrect: false }
+      { id: 1, text: "Respiration de l'Eau", is_correct: false },
+      { id: 2, text: "Respiration du Soleil", is_correct: true },
+      { id: 3, text: "Respiration du Tonnerre", is_correct: false },
+      { id: 4, text: "Respiration de la Flamme", is_correct: false }
     ],
     categoryId: 1,
     difficulty: 'hard',
@@ -120,10 +120,10 @@ export const mockQuestions: AdminQuestion[] = [
     text: "Quel est le nom du personnage principal dans Fullmetal Alchemist?",
     type: 'text',
     options: [
-      { id: 1, text: "Roy Mustang", isCorrect: false },
-      { id: 2, text: "Alphonse Elric", isCorrect: false },
-      { id: 3, text: "Edward Elric", isCorrect: true },
-      { id: 4, text: "Scar", isCorrect: false }
+      { id: 1, text: "Roy Mustang", is_correct: false },
+      { id: 2, text: "Alphonse Elric", is_correct: false },
+      { id: 3, text: "Edward Elric", is_correct: true },
+      { id: 4, text: "Scar", is_correct: false }
     ],
     categoryId: 1,
     difficulty: 'easy',
@@ -139,10 +139,10 @@ export const mockQuestions: AdminQuestion[] = [
     type: 'image',
     mediaUrl: '/images/questions/jujutsu-kaisen.jpg',
     options: [
-      { id: 1, text: "Yuji Itadori", isCorrect: false },
-      { id: 2, text: "Megumi Fushiguro", isCorrect: false },
-      { id: 3, text: "Nobara Kugisaki", isCorrect: false },
-      { id: 4, text: "Satoru Gojo", isCorrect: true }
+      { id: 1, text: "Yuji Itadori", is_correct: false },
+      { id: 2, text: "Megumi Fushiguro", is_correct: false },
+      { id: 3, text: "Nobara Kugisaki", is_correct: false },
+      { id: 4, text: "Satoru Gojo", is_correct: true }
     ],
     categoryId: 1,
     difficulty: 'medium',
@@ -157,10 +157,10 @@ export const mockQuestions: AdminQuestion[] = [
     text: "Quelle est la particularité du cahier dans Death Note?",
     type: 'text',
     options: [
-      { id: 1, text: "Il permet de voyager dans le temps", isCorrect: false },
-      { id: 2, text: "Il rend invisible celui qui le touche", isCorrect: false },
-      { id: 3, text: "Il permet de tuer en écrivant un nom", isCorrect: true },
-      { id: 4, text: "Il permet de lire dans les pensées", isCorrect: false }
+      { id: 1, text: "Il permet de voyager dans le temps", is_correct: false },
+      { id: 2, text: "Il rend invisible celui qui le touche", is_correct: false },
+      { id: 3, text: "Il permet de tuer en écrivant un nom", is_correct: true },
+      { id: 4, text: "Il permet de lire dans les pensées", is_correct: false }
     ],
     categoryId: 2,
     difficulty: 'easy',
@@ -176,10 +176,10 @@ export const mockQuestions: AdminQuestion[] = [
     type: 'audio',
     mediaUrl: '/audio/questions/tokyo-ghoul-ending.mp3',
     options: [
-      { id: 1, text: "Unravel", isCorrect: false },
-      { id: 2, text: "Asphyxia", isCorrect: false },
-      { id: 3, text: "Katharsis", isCorrect: false },
-      { id: 4, text: "Glassy Sky", isCorrect: true }
+      { id: 1, text: "Unravel", is_correct: false },
+      { id: 2, text: "Asphyxia", is_correct: false },
+      { id: 3, text: "Katharsis", is_correct: false },
+      { id: 4, text: "Glassy Sky", is_correct: true }
     ],
     categoryId: 3,
     difficulty: 'hard',
@@ -197,7 +197,7 @@ export const mockCategories: QuestionCategory[] = [
     id: 1,
     name: 'Shonen Classics',
     description: 'Questions sur les animes et mangas shonen populaires',
-    questionCount: 5,
+    question_count: 5,
     active: true,
     createdAt: '2023-10-01T10:00:00Z',
     updatedAt: '2023-10-01T10:00:00Z'
@@ -206,7 +206,7 @@ export const mockCategories: QuestionCategory[] = [
     id: 2,
     name: 'Seinen Masterpieces',
     description: 'Questions sur les œuvres seinen pour public mature',
-    questionCount: 2,
+    question_count: 2,
     active: true,
     createdAt: '2023-10-02T11:30:00Z',
     updatedAt: '2023-10-02T11:30:00Z'
@@ -215,7 +215,7 @@ export const mockCategories: QuestionCategory[] = [
     id: 3,
     name: 'Anime Openings & Endings',
     description: 'Questions sur les musiques d\'animes',
-    questionCount: 2,
+    question_count: 2,
     active: true,
     createdAt: '2023-10-03T14:15:00Z',
     updatedAt: '2023-10-03T14:15:00Z'
@@ -224,7 +224,7 @@ export const mockCategories: QuestionCategory[] = [
     id: 4,
     name: 'Shojo Romance',
     description: 'Questions sur les animes et mangas shojo romantiques',
-    questionCount: 0,
+    question_count: 0,
     active: true,
     createdAt: '2023-10-04T09:45:00Z',
     updatedAt: '2023-10-04T09:45:00Z'
@@ -233,7 +233,7 @@ export const mockCategories: QuestionCategory[] = [
     id: 5,
     name: 'Mecha & Sci-Fi',
     description: 'Questions sur les animes et mangas de science-fiction et mecha',
-    questionCount: 0,
+    question_count: 0,
     active: false,
     createdAt: '2023-10-05T16:20:00Z',
     updatedAt: '2023-10-05T16:20:00Z'

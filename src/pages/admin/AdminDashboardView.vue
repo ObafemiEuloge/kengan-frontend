@@ -1,6 +1,6 @@
 // src/pages/admin/AdminDashboardView.vue
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted, computed, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from '../../store/auth/authStore';
 import { adminService } from '../../services/adminService';
@@ -19,9 +19,11 @@ import {
   Bell
 } from 'lucide-vue-next';
 
+// Composants de tableau de bord
+import RealtimeUsersChart from '../../components/admin/dashboard/RealTimeUsersChart.vue';
+
 // Composants de tableau de bord que nous allons implémenter séparément
 // import AdminStatsOverview from '../../components/admin/dashboard/AdminStatsOverview.vue';
-// import RealtimeUsersChart from '../../components/admin/dashboard/RealtimeUsersChart.vue';
 // import FinancialSummary from '../../components/admin/dashboard/FinancialSummary.vue';
 // import RecentActivitiesPanel from '../../components/admin/dashboard/RecentActivitiesPanel.vue';
 // import QuickActionsPanel from '../../components/admin/dashboard/QuickActionsPanel.vue';
@@ -139,6 +141,9 @@ const loadDashboardData = async () => {
       recentActivities.value = activities;
     }
     
+    // Récupération des statistiques des utilisateurs connectés
+    await fetchConnectedUsersStats();
+    
     console.log('Données du tableau de bord chargées avec succès');
   } catch (error) {
     console.error('Erreur lors du chargement des données du tableau de bord:', error);
@@ -147,12 +152,18 @@ const loadDashboardData = async () => {
   }
 };
 
-// Fermeture de la notification de bienvenue
-const dismissWelcomeNotification = async () => {
-  showWelcomeNotification.value = false;
-  
-  // Marquer la notification comme lue dans le backend
-  await adminService.markAdminWelcomeNotificationAsRead();
+// Récupération des statistiques des utilisateurs connectés
+let connectedUsersInterval: any = null;
+
+const fetchConnectedUsersStats = async () => {
+  try {
+    console.log('Récupération des statistiques des utilisateurs connectés');
+    const connectedStats = await adminService.getConnectedUsersStats();
+    connectedUsers.value = connectedStats;
+    console.log('Statistiques des utilisateurs connectés:', connectedUsers.value);
+  } catch (error) {
+    console.error('Erreur lors de la récupération des statistiques des utilisateurs connectés:', error);
+  }
 };
 
 onMounted(async () => {
@@ -161,7 +172,25 @@ onMounted(async () => {
   
   // Charger les données du dashboard
   await loadDashboardData();
+  
+  // Mettre en place une actualisation périodique des utilisateurs connectés
+  connectedUsersInterval = setInterval(fetchConnectedUsersStats, 30000); // Toutes les 30 secondes
 });
+
+// Nettoyer l'intervalle lors de la destruction du composant
+onUnmounted(() => {
+  if (connectedUsersInterval) {
+    clearInterval(connectedUsersInterval);
+  }
+});
+
+// Fermeture de la notification de bienvenue
+const dismissWelcomeNotification = async () => {
+  showWelcomeNotification.value = false;
+  
+  // Marquer la notification comme lue dans le backend
+  await adminService.markAdminWelcomeNotificationAsRead();
+};
 
 // Meilleures catégories de questions
 const topCategories = ref([
@@ -348,40 +377,10 @@ const getActivityIcon = (type: string) => {
     <!-- Utilisateurs connectés et Revenus -->
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
       <!-- Utilisateurs connectés -->
-      <div class="bg-white rounded-lg shadow p-6">
-        <div class="flex justify-between items-center mb-4">
-          <h3 class="font-heading text-gray-700">Utilisateurs connectés</h3>
-          <span class="flex items-center text-xs text-gray-500">
-            <Clock class="w-4 h-4 mr-1" />
-            Temps réel
-          </span>
-        </div>
-        
-        <div class="flex flex-col items-center justify-center py-6">
-          <div class="text-5xl font-bold text-secondary mb-2">{{ connectedUsers.current }}</div>
-          <div class="text-sm text-gray-500 mb-6">utilisateurs en ligne</div>
-          
-          <div class="w-full flex justify-between text-sm">
-            <div class="text-center">
-              <div class="text-gray-500">Pic aujourd'hui</div>
-              <div class="text-lg font-bold text-gray-800">{{ connectedUsers.peak }}</div>
-            </div>
-            <div class="text-center">
-              <div class="text-gray-500">Moyenne journalière</div>
-              <div class="text-lg font-bold text-gray-800">{{ connectedUsers.average }}</div>
-            </div>
-          </div>
-        </div>
-        
-        <div class="mt-4 pt-4 border-t border-gray-100">
-          <button 
-            class="w-full py-2 text-center text-secondary text-sm hover:bg-gray-50 rounded"
-            @click="navigateTo('/admin/reports')"
-          >
-            Voir les statistiques détaillées
-          </button>
-        </div>
-      </div>
+      <RealtimeUsersChart 
+        :connectedUsers="connectedUsers" 
+        @refresh="fetchConnectedUsersStats"
+      />
       
       <!-- Graphique des revenus -->
       <div class="bg-white rounded-lg shadow p-6 lg:col-span-2">
@@ -627,9 +626,8 @@ const getActivityIcon = (type: string) => {
               </tr>
             </tbody>
           </table>
-          </div>
         </div>
       </div>
     </div>
-  </div>
+  </div></div>
 </template>

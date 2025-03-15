@@ -4,4 +4,4 @@ export interface Balance {
     pending: number;
     locked: number;
     currency: string;
-}
+  }

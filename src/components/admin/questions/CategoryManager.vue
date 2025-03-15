@@ -1,15 +1,29 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue';
-import { Plus, Pencil, Trash2, Eye, EyeOff } from 'lucide-vue-next';
+import { ref, onMounted, computed, watch } from 'vue';
+import { Plus, Pencil, Trash2, Eye, EyeOff, AlertTriangle } from 'lucide-vue-next';
 import { useAdminQuestionsStore } from '../../../store/admin/adminQuestionsStore';
 import type { QuestionCategory } from '../../../types/admin/question';
 import BaseButton from '../../ui/BaseButton.vue';
 
 const questionsStore = useAdminQuestionsStore();
 
+// État pour la gestion des erreurs
+const apiError = ref('');
+
 // Récupérer les catégories au chargement
 onMounted(async () => {
-  await questionsStore.fetchCategories(false);
+  try {
+    await questionsStore.fetchCategories(false);
+  } catch (error: any) {
+    apiError.value = error.message || 'Erreur lors de la récupération des catégories';
+  }
+});
+
+// Surveiller les erreurs du store
+watch(() => questionsStore.error, (newError) => {
+  if (newError) {
+    apiError.value = newError;
+  }
 });
 
 // État pour le formulaire d'ajout/édition
@@ -26,6 +40,9 @@ const categoryForm = ref<{
   active: true
 });
 
+// Validations du formulaire
+const formErrors = ref<Record<string, string>>({});
+
 // Ouvrir le formulaire en mode ajout
 const openAddForm = () => {
   formMode.value = 'add';
@@ -34,6 +51,7 @@ const openAddForm = () => {
     description: '',
     active: true
   };
+  formErrors.value = {};
   formVisible.value = true;
 };
 
@@ -46,6 +64,7 @@ const openEditForm = (category: QuestionCategory) => {
     description: category.description,
     active: category.active
   };
+  formErrors.value = {};
   formVisible.value = true;
 };
 
@@ -54,37 +73,68 @@ const closeForm = () => {
   formVisible.value = false;
 };
 
-// Soumettre le formulaire
-const submitForm = async () => {
-  if (formMode.value === 'add') {
-    await questionsStore.createCategory({
-      name: categoryForm.value.name,
-      description: categoryForm.value.description,
-      active: categoryForm.value.active
-    });
-  } else if (formMode.value === 'edit' && categoryForm.value.id) {
-    await questionsStore.updateCategory(categoryForm.value.id, {
-      name: categoryForm.value.name,
-      description: categoryForm.value.description,
-      active: categoryForm.value.active
-    });
+// Valider le formulaire
+const validateForm = () => {
+  formErrors.value = {};
+  
+  if (!categoryForm.value.name.trim()) {
+    formErrors.value.name = 'Le nom de la catégorie est requis';
   }
   
-  formVisible.value = false;
+  return Object.keys(formErrors.value).length === 0;
+};
+
+// Soumettre le formulaire
+const submitForm = async () => {
+  // Valider le formulaire
+  if (!validateForm()) {
+    return;
+  }
+  
+  try {
+    apiError.value = '';
+    
+    if (formMode.value === 'add') {
+      await questionsStore.createCategory({
+        name: categoryForm.value.name,
+        description: categoryForm.value.description,
+        active: categoryForm.value.active
+      });
+    } else if (formMode.value === 'edit' && categoryForm.value.id) {
+      await questionsStore.updateCategory(categoryForm.value.id, {
+        name: categoryForm.value.name,
+        description: categoryForm.value.description,
+        active: categoryForm.value.active
+      });
+    }
+    
+    formVisible.value = false;
+  } catch (error: any) {
+    // Vérifier si l'erreur a des détails structurés
+    if (error.details && typeof error.details === 'object') {
+      Object.entries(error.details).forEach(([key, value]) => {
+        formErrors.value[key] = Array.isArray(value) ? value[0] : String(value);
+      });
+    } else {
+      apiError.value = error.message || 'Erreur lors de l\'enregistrement de la catégorie';
+    }
+  }
 };
 
 // Supprimer une catégorie
 const categoryToDelete = ref<number | null>(null);
 const deleteModalOpen = ref(false);
+const deleteError = ref('');
 
 const confirmDelete = async () => {
   if (categoryToDelete.value !== null) {
+    deleteError.value = '';
     try {
       await questionsStore.deleteCategory(categoryToDelete.value);
       deleteModalOpen.value = false;
       categoryToDelete.value = null;
-    } catch (error) {
-      alert("Impossible de supprimer cette catégorie. Assurez-vous qu'elle ne contient pas de questions.");
+    } catch (error: any) {
+      deleteError.value = error.message || 'Impossible de supprimer cette catégorie. Assurez-vous qu\'elle ne contient pas de questions.';
     }
   }
 };
@@ -92,25 +142,31 @@ const confirmDelete = async () => {
 const cancelDelete = () => {
   deleteModalOpen.value = false;
   categoryToDelete.value = null;
+  deleteError.value = '';
 };
 
 const openDeleteModal = (id: number) => {
   categoryToDelete.value = id;
+  deleteError.value = '';
   deleteModalOpen.value = true;
 };
 
 // Activer/désactiver une catégorie
 const toggleCategoryStatus = async (id: number, active: boolean) => {
-  await questionsStore.toggleCategoryStatus(id, !active);
+  try {
+    apiError.value = '';
+    await questionsStore.toggleCategoryStatus(id, !active);
+  } catch (error: any) {
+    apiError.value = error.message || 'Erreur lors du changement de statut de la catégorie';
+  }
 };
 
-// Calcul du nombre total de questions actives par catégorie
-const getActiveQuestionCount = (categoryId: number) => {
-  return questionsStore.questions.filter(q => q.categoryId === categoryId && q.active).length;
-};
-
-// Tri des catégories (actives d'abord, puis par nom)
 const sortedCategories = computed(() => {
+  // Vérification de sécurité pour s'assurer que categories est un tableau
+  if (!questionsStore.categories || !Array.isArray(questionsStore.categories)) {
+    return [];
+  }
+  
   return [...questionsStore.categories].sort((a, b) => {
     if (a.active === b.active) {
       return a.name.localeCompare(b.name);
@@ -122,6 +178,12 @@ const sortedCategories = computed(() => {
 
 <template>
   <div>
+    <!-- Message d'erreur -->
+    <div v-if="apiError" class="mb-4 bg-red-50 border border-red-500 text-red-700 px-4 py-3 rounded flex items-start">
+      <AlertTriangle class="w-5 h-5 mt-0.5 mr-2 flex-shrink-0" />
+      <p>{{ apiError }}</p>
+    </div>
+    
     <!-- En-tête avec bouton d'ajout -->
     <div class="mb-4 flex justify-between items-center">
       <h2 class="text-xl font-bold text-gray-800">Gestion des catégories</h2>
@@ -190,7 +252,7 @@ const sortedCategories = computed(() => {
               <!-- Nombre de questions -->
               <td class="px-6 py-4 whitespace-nowrap">
                 <div class="text-sm text-gray-700">
-                  {{ category.questionCount }} questions
+                  {{ category.question_count }} questions
                 </div>
               </td>
               
@@ -226,8 +288,8 @@ const sortedCategories = computed(() => {
                   @click="openDeleteModal(category.id)"
                   class="text-red-600 hover:text-red-800 tooltip"
                   data-tooltip="Supprimer"
-                  :disabled="category.questionCount > 0"
-                  :class="{ 'opacity-50 cursor-not-allowed': category.questionCount > 0 }"
+                  :disabled="category.question_count > 0"
+                  :class="{ 'opacity-50 cursor-not-allowed': category.question_count > 0 }"
                 >
                   <Trash2 class="w-5 h-5" />
                 </button>
@@ -249,14 +311,16 @@ const sortedCategories = computed(() => {
         
         <form @submit.prevent="submitForm">
           <div class="mb-4">
-            <label for="name" class="block text-sm font-medium text-gray-700 mb-1">Nom</label>
+            <label for="name" class="block text-sm font-medium text-gray-700 mb-1">Nom <span class="text-red-600">*</span></label>
             <input 
               v-model="categoryForm.name"
               type="text" 
               id="name"
               required
               class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+              :class="{ 'border-red-500': formErrors.name }"
             />
+            <p v-if="formErrors.name" class="mt-1 text-sm text-red-600">{{ formErrors.name }}</p>
           </div>
           
           <div class="mb-4">
@@ -266,7 +330,9 @@ const sortedCategories = computed(() => {
               id="description"
               rows="3"
               class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+              :class="{ 'border-red-500': formErrors.description }"
             ></textarea>
+            <p v-if="formErrors.description" class="mt-1 text-sm text-red-600">{{ formErrors.description }}</p>
           </div>
           
           <div class="mb-4 flex items-center">
@@ -306,6 +372,11 @@ const sortedCategories = computed(() => {
       <div class="relative bg-white rounded-lg max-w-md w-full mx-auto p-6 shadow-xl z-10">
         <h3 class="text-lg leading-6 font-medium text-gray-900 mb-4">Confirmer la suppression</h3>
         
+        <div v-if="deleteError" class="mb-4 bg-red-50 border border-red-500 text-red-700 px-4 py-3 rounded flex items-start">
+          <AlertTriangle class="w-5 h-5 mt-0.5 mr-2 flex-shrink-0" />
+          <p>{{ deleteError }}</p>
+        </div>
+        
         <div class="mt-2">
           <p class="text-sm text-gray-500">
             Êtes-vous sûr de vouloir supprimer cette catégorie ? Cette action est irréversible.
@@ -322,8 +393,9 @@ const sortedCategories = computed(() => {
           <button
             @click="confirmDelete"
             class="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 focus:outline-none"
+            :disabled="questionsStore.loading.saving"
           >
-            Supprimer
+            {{ questionsStore.loading.saving ? 'Suppression...' : 'Supprimer' }}
           </button>
         </div>
       </div>

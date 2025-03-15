@@ -88,17 +88,18 @@ export const useTransactionsStore = defineStore('transactions', {
       this.error = null;
       
       try {
-        // Mise à jour: accès aux données avec la structure correcte
-        const response = await walletService.getTransactions(this.currentPage);
+        // Utiliser la méthode correcte pour récupérer les transactions paginées
+        const response = await walletService.getTransactionsList(this.currentPage);
         
-        // Adaptation à la structure de réponse du service
+        // Mettre à jour l'état avec les données reçues
         this.transactions = response.data || [];
         this.totalCount = response.pagination?.total || 0;
         
         return this.transactions;
       } catch (error: any) {
+        console.error('Erreur complète:', error);
         this.error = error.message || 'Erreur lors de la récupération des transactions';
-        this.transactions = []; // Réinitialiser comme tableau vide en cas d'erreur
+        this.transactions = []; 
         return [];
       } finally {
         this.loading = false;

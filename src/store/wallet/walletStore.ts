@@ -113,7 +113,7 @@ export const useWalletStore = defineStore('wallet', {
       this.error = null;
       
       try {
-        const transaction = await walletService.getTransaction(transactionId);
+        const transaction = await walletService.getTransactions(transactionId);
         this.currentTransaction = transaction;
         return transaction;
       } catch (error: any) {
@@ -174,59 +174,42 @@ export const useWalletStore = defineStore('wallet', {
       this.error = null;
       
       try {
-        // 1. Initialiser la transaction
-        const transaction = await this.initiateDeposit(amount, paymentMethod, paymentMethod === 'mobile_money' ? paymentData.mobileNumber : undefined);
+        // Adapter les données pour l'API backend (convertir camelCase en snake_case)
+        const requestData = {
+          amount,
+          payment_method: paymentMethod
+        };
         
-        if (!transaction) {
-          throw new Error('Échec de l\'initialisation de la transaction');
+        // Ajouter les détails spécifiques selon la méthode de paiement
+        if (paymentMethod === 'mobile_money') {
+          requestData['mobile_number'] = paymentData.mobileNumber;
+          requestData['mobile_operator'] = paymentData.mobileOperator;
+        } else if (paymentMethod === 'card') {
+          requestData['card_number'] = paymentData.cardNumber;
+          requestData['card_expiry_month'] = paymentData.expiryMonth || paymentData.cardExpiryMonth;
+          requestData['card_expiry_year'] = paymentData.expiryYear || paymentData.cardExpiryYear;
+          requestData['card_cvv'] = paymentData.cvv || paymentData.cardCVV;
         }
         
-        // 2. Processus de paiement spécifique selon la méthode
-        let paymentResult;
+        // Appeler l'API directement (sans passer par initiateDeposit)
+        const response = await walletService.initiateTopUp(requestData);
         
-        switch (paymentMethod) {
-          case 'card':
-            paymentResult = await walletService.processCardPayment(
-              transaction.id,
-              paymentData.cardNumber,
-              paymentData.expiryMonth,
-              paymentData.expiryYear,
-              paymentData.cvv
-            );
-            break;
-            
-          case 'mobile_money':
-            paymentResult = await walletService.processMobilePayment(
-              transaction.id,
-              paymentData.mobileNumber,
-              paymentData.mobileOperator
-            );
-            break;
-            
-          case 'paypal':
-            paymentResult = await walletService.processPaypalPayment(
-              transaction.id
-            );
-            break;
-            
-          default:
-            throw new Error('Méthode de paiement non prise en charge');
+        if (!response) {
+          throw new Error('Échec de l\'initialisation du paiement');
         }
         
-        if (!paymentResult.success) {
-          throw new Error(paymentResult.message || 'Échec du traitement du paiement');
-        }
-        
-        // 3. Mettre à jour le statut de la transaction
-        const updatedTransaction = await this.fetchTransaction(transaction.id);
-        
-        // 4. Rafraîchir le solde
+        // Rafraîchir le solde
         await this.fetchBalance();
         
-        this.successMessage = `Votre compte a été rechargé avec succès de ${amount.toLocaleString()} FCFA.`;
-        return updatedTransaction;
+        this.successMessage = `Votre demande de rechargement de ${amount.toLocaleString()} FCFA a été initiée avec succès.`;
+        return response;
       } catch (error: any) {
-        this.error = error.message || 'Erreur lors du rechargement';
+        // Si l'erreur est un objet avec une propriété 'non_field_errors'
+        if (error.details && error.details.non_field_errors) {
+          this.error = error.details.non_field_errors[0];
+        } else {
+          this.error = error.message || 'Erreur lors du rechargement';
+        }
         return null;
       } finally {
         this.processingPayment = false;
@@ -239,47 +222,41 @@ export const useWalletStore = defineStore('wallet', {
       this.error = null;
       
       try {
-        // Formater les détails du compte selon la méthode
-        let accountDetails;
+        // Préparer les données directement pour l'API avec les bonnes clés
+        const requestData = {
+          amount,
+          withdrawal_method: withdrawalMethod
+        };
         
-        if (withdrawalMethod === 'bank') {
-          accountDetails = JSON.stringify({
-            accountNumber: withdrawalData.accountNumber,
-            accountName: withdrawalData.accountName,
-            bankName: withdrawalData.bankName
-          });
-        } else {
-          accountDetails = JSON.stringify({
-            mobileNumber: withdrawalData.mobileNumber,
-            mobileOperator: withdrawalData.mobileOperator
-          });
+        // Ajouter les détails spécifiques selon la méthode de retrait
+        if (withdrawalMethod === 'mobile_money') {
+          requestData['mobile_number'] = withdrawalData.mobileNumber;
+          requestData['mobile_operator'] = withdrawalData.mobileOperator;
+        } else if (withdrawalMethod === 'bank') {
+          requestData['bank_name'] = withdrawalData.bankName;
+          requestData['account_number'] = withdrawalData.accountNumber;
+          requestData['account_name'] = withdrawalData.accountName;
         }
         
-        // Initialiser la transaction de retrait
-        const transaction = await this.initiateWithdrawal(amount, withdrawalMethod, accountDetails);
+        // Appeler l'API directement
+        const response = await walletService.initiateWithdrawalDirect(requestData);
         
-        if (!transaction) {
+        if (!response) {
           throw new Error('Échec de l\'initialisation du retrait');
         }
-        
-        // Pour un retrait, une vérification est généralement nécessaire
-        // (email, sms, etc.) - nous allons simuler une confirmation immédiate
-        const confirmationResult = await walletService.confirmWithdrawal(transaction.id);
-        
-        if (!confirmationResult.success) {
-          throw new Error(confirmationResult.message || 'Échec de la confirmation du retrait');
-        }
-        
-        // Mettre à jour le statut de la transaction
-        const updatedTransaction = await this.fetchTransaction(transaction.id);
         
         // Rafraîchir le solde
         await this.fetchBalance();
         
-        this.successMessage = `Votre demande de retrait de ${amount.toLocaleString()} FCFA a été traitée avec succès. Vous recevrez vos fonds dans un délai de 24 à 48 heures.`;
-        return updatedTransaction;
+        this.successMessage = `Votre demande de retrait de ${amount.toLocaleString()} FCFA a été soumise avec succès. Elle sera traitée dans un délai de 24 à 48 heures.`;
+        return response;
       } catch (error: any) {
-        this.error = error.message || 'Erreur lors du retrait';
+        // Si l'erreur est un objet avec une propriété 'non_field_errors'
+        if (error.details && error.details.non_field_errors) {
+          this.error = error.details.non_field_errors[0];
+        } else {
+          this.error = error.message || 'Erreur lors du retrait';
+        }
         return null;
       } finally {
         this.processingPayment = false;
@@ -292,7 +269,7 @@ export const useWalletStore = defineStore('wallet', {
       this.error = null;
       
       try {
-        const transaction = await walletService.getTransaction(transactionId);
+        const transaction = await walletService.getTransactions(transactionId);
         this.currentTransaction = transaction;
         return transaction.status;
       } catch (error: any) {

@@ -55,7 +55,7 @@ const questions = ref([
     options: [
       { id: 1, text: "Titan Colossal" },
       { id: 2, text: "Titan Cuirassé" },
-      { id: 3, text: "Titan Assaillant", isCorrect: true },
+      { id: 3, text: "Titan Assaillant", is_correct: true },
       { id: 4, text: "Titan Bestial" }
     ],
     timeLimit: 15,
@@ -70,7 +70,7 @@ const questions = ref([
     imageUrl: "/images/questions/one-piece-crew.jpg",
     options: [
       { id: 1, text: "Zoro" },
-      { id: 2, text: "Luffy", isCorrect: true },
+      { id: 2, text: "Luffy", is_correct: true },
       { id: 3, text: "Nami" },
       { id: 4, text: "Sanji" }
     ],
@@ -87,7 +87,7 @@ const questions = ref([
     options: [
       { id: 1, text: "Chidori" },
       { id: 2, text: "Rasengan" },
-      { id: 3, text: "Multi-clonage", isCorrect: true },
+      { id: 3, text: "Multi-clonage", is_correct: true },
       { id: 4, text: "Invocation" }
     ],
     timeLimit: 15,
@@ -101,7 +101,7 @@ const questions = ref([
     text: "Quelle est la respiration principale utilisée par Tanjiro dans Demon Slayer?",
     imageUrl: "/images/questions/demon-slayer.jpg",
     options: [
-      { id: 1, text: "Respiration de l'Eau", isCorrect: true },
+      { id: 1, text: "Respiration de l'Eau", is_correct: true },
       { id: 2, text: "Respiration du Feu" },
       { id: 3, text: "Respiration du Tonnerre" },
       { id: 4, text: "Respiration du Vent" }
@@ -118,7 +118,7 @@ const questions = ref([
     imageUrl: "/images/questions/my-hero-academia.jpg",
     options: [
       { id: 1, text: "Voler" },
-      { id: 2, text: "Super force", isCorrect: true },
+      { id: 2, text: "Super force", is_correct: true },
       { id: 3, text: "Invisibilité" },
       { id: 4, text: "Créer des explosions" }
     ],
@@ -137,7 +137,7 @@ const remainingQuestions = computed(() => questions.value.length - duelState.val
 // État des réponses et feedback
 const selectedOptionId = ref<number | null>(null);
 const showFeedback = ref(false);
-const isCorrect = ref(false);
+const is_correct = ref(false);
 const answerTime = ref(0);
 const showExplanation = ref(false);
 const timerPaused = ref(false);
@@ -175,7 +175,7 @@ const simulateOpponentAnswer = () => {
         duelState.value.opponentScore++;
         
         // Trouver l'option correcte
-        const correctOption = currentQuestion.value.options.find(opt => opt.isCorrect);
+        const correctOption = currentQuestion.value.options.find(opt => opt.is_correct);
         
         // Pause le timer
         if (timerRef.value) {
@@ -185,7 +185,7 @@ const simulateOpponentAnswer = () => {
         
         // Montrer le feedback "bloqué par l'adversaire"
         showFeedback.value = true;
-        isCorrect.value = false;
+        is_correct.value = false;
         
         // Message spécial quand l'adversaire répond correctement
         BaseAlert({
@@ -211,10 +211,10 @@ const submitAnswer = (optionId: number) => {
   
   // Trouver si la réponse est correcte
   const option = currentQuestion.value.options.find(opt => opt.id === optionId);
-  isCorrect.value = option?.isCorrect || false;
+  is_correct.value = option?.is_correct || false;
   
   // Mettre à jour le score
-  if (isCorrect.value) {
+  if (is_correct.value) {
     duelState.value.playerScore++;
   }
   
@@ -239,7 +239,7 @@ const submitAnswer = (optionId: number) => {
 // Gérer le timeout
 const handleTimeout = () => {
   showFeedback.value = true;
-  isCorrect.value = false;
+  is_correct.value = false;
   
   // Montrer un message de temps écoulé
   BaseAlert({
@@ -257,7 +257,7 @@ const nextQuestion = () => {
   // Réinitialiser l'état
   selectedOptionId.value = null;
   showFeedback.value = false;
-  isCorrect.value = false;
+  is_correct.value = false;
   showExplanation.value = false;
   timerPaused.value = false;
   
@@ -333,7 +333,7 @@ const playAgain = () => {
   // Réinitialiser les variables d'état
   selectedOptionId.value = null;
   showFeedback.value = false;
-  isCorrect.value = false;
+  is_correct.value = false;
   showExplanation.value = false;
   timerPaused.value = false;
   
@@ -386,10 +386,10 @@ const getOptionClass = (option: any) => {
   if (!showFeedback.value) return '';
   
   if (option.id === selectedOptionId.value) {
-    return option.isCorrect ? 'bg-green-600' : 'bg-red-600';
+    return option.is_correct ? 'bg-green-600' : 'bg-red-600';
   }
   
-  if (option.isCorrect) {
+  if (option.is_correct) {
     return 'bg-green-600';
   }
   
@@ -544,12 +544,12 @@ const getOptionClass = (option: any) => {
             
             <!-- Indication de réponse sélectionnée -->
             <div v-if="showFeedback && option.id === selectedOptionId" class="absolute top-2 right-2">
-              <span v-if="option.isCorrect" class="text-green-400">✓</span>
+              <span v-if="option.is_correct" class="text-green-400">✓</span>
               <span v-else class="text-red-400">✗</span>
             </div>
             
             <!-- Indication de réponse correcte -->
-            <div v-else-if="showFeedback && option.isCorrect" class="absolute top-2 right-2">
+            <div v-else-if="showFeedback && option.is_correct" class="absolute top-2 right-2">
               <span class="text-green-400">✓</span>
             </div>
           </button>

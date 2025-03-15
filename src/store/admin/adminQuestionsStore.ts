@@ -1,6 +1,7 @@
 // src/store/admin/adminQuestionsStore.ts
 import { defineStore } from 'pinia';
 import { adminQuestionsService } from '../../services/adminQuestionsService';
+import api from '../../services/api';
 import type { 
   AdminQuestion, 
   QuestionCategory, 
@@ -72,7 +73,14 @@ export const useAdminQuestionsStore = defineStore('adminQuestions', {
     },
     
     getCategoryName: (state) => (id: number): string => {
-      const category = state.categories.find(category => category.id === id);
+      console.log("Recherche de catégorie avec ID:", id, "type:", typeof id);
+      console.log("Catégories disponibles:", state.categories.length);
+      
+      // Conversion explicite en nombre pour s'assurer que les types correspondent
+      const numericId = Number(id);
+      const category = state.categories.find(category => Number(category.id) === numericId);
+      
+      console.log("Catégorie trouvée:", category);
       return category ? category.name : 'Catégorie inconnue';
     },
     
@@ -153,23 +161,67 @@ export const useAdminQuestionsStore = defineStore('adminQuestions', {
     },
     
     // Créer une nouvelle question
-    async createQuestion(question: Omit<AdminQuestion, 'id' | 'createdAt' | 'updatedAt' | 'usageCount'>) {
-      this.loading.saving = true;
-      this.error = null;
-      
-      try {
-        const newQuestion = await adminQuestionsService.createQuestion(question);
-        // Actualisez la liste si nécessaire
-        await this.fetchQuestions();
-        return newQuestion;
-      } catch (error: any) {
-        this.error = error.message || 'Erreur lors de la création de la question';
-        console.error('Error creating question:', error);
-        return null;
-      } finally {
-        this.loading.saving = false;
-      }
-    },
+    // src/services/adminQuestionsService.ts
+    // Dans la méthode createQuestion
+async createQuestion(question: Omit<AdminQuestion, 'id' | 'createdAt' | 'updatedAt' | 'usageCount'>): Promise<AdminQuestion> {
+  // Si des fichiers sont présents, utiliser FormData
+  if (question.image instanceof File || question.audio instanceof File || question.video instanceof File) {
+    const formData = new FormData();
+    
+    // Le problème est corrigé ici - créer un objet JSON pour toutes les données
+    const requestData = {
+      text: question.text,
+      type: question.type,
+      category_id: question.categoryId, // Utiliser le snake_case pour Django
+      difficulty: question.difficulty,
+      time_limit: question.timeLimit,
+      active: question.active,
+      options: question.options.map(option => ({
+        text: option.text,
+        is_correct: option.isCorrect // Convertir isCorrect en is_correct
+      }))
+    };
+    
+    // Ajouter les données JSON comme une string
+    formData.append('data', JSON.stringify(requestData));
+    
+    // Ajouter uniquement les fichiers au FormData
+    if (question.image instanceof File) {
+      formData.append('image', question.image);
+    }
+    if (question.audio instanceof File) {
+      formData.append('audio', question.audio);
+    }
+    if (question.video instanceof File) {
+      formData.append('video', question.video);
+    }
+    
+    // Debug: Afficher ce qui est envoyé
+    console.log("===== FORM DATA SOUMIS =====");
+    for (let [key, value] of formData.entries()) {
+      console.log(`${key}: ${value instanceof File ? 'File' : value}`);
+    }
+    
+    this.loading.saving = true;
+    this.error = null;
+    
+    try {
+      return api.post('/admin/questions/', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      });
+      await this.fetchQuestions();
+      // Actualiser la liste après création réussie
+    } catch (error: any) {
+      this.error = error.message || 'Erreur lors de la création de la question';
+      console.error('Error creating question with media:', error);
+      throw error;
+    } finally {
+      this.loading.saving = false;
+    }
+  }
+},
     
     // Mettre à jour une question
     async updateQuestion(id: number, questionData: Partial<AdminQuestion>) {
@@ -264,12 +316,24 @@ export const useAdminQuestionsStore = defineStore('adminQuestions', {
       this.error = null;
       
       try {
+        console.log('Fetching categories with activeOnly:', activeOnly);
         const categories = await adminQuestionsService.getCategories(activeOnly);
-        this.categories = categories;
-        return categories;
+        console.log('Categories received in store:', categories);
+        
+        // S'assurer que categories est toujours un tableau
+        this.categories = Array.isArray(categories) ? categories : [];
+        
+        if (this.categories.length === 0) {
+          console.log('No categories were found or returned. This might be normal or indicate an issue.');
+        }
+        
+        return this.categories;
       } catch (error: any) {
         this.error = error.message || 'Erreur lors de la récupération des catégories';
-        console.error('Error fetching categories:', error);
+        console.error('Error fetching categories in store:', error);
+        
+        // Réinitialiser à un tableau vide en cas d'erreur
+        this.categories = [];
         return [];
       } finally {
         this.loading.categories = false;
@@ -277,7 +341,7 @@ export const useAdminQuestionsStore = defineStore('adminQuestions', {
     },
     
     // Créer une nouvelle catégorie
-    async createCategory(category: Omit<QuestionCategory, 'id' | 'createdAt' | 'updatedAt' | 'questionCount'>) {
+    async createCategory(category: Omit<QuestionCategory, 'id' | 'createdAt' | 'updatedAt' | 'question_count'>) {
       this.loading.saving = true;
       this.error = null;
       

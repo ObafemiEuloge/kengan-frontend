@@ -1,4 +1,3 @@
-// src/components/admin/transactions/TransactionsTable.vue
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue';
 import { formatDistanceToNow } from 'date-fns';
@@ -171,6 +170,8 @@ const getTypeLabel = (type) => {
 watch(() => props.transactions, () => {
   // Update selection on data change
   if (selectAll.value) {
+    console.log("props.transactions///////////////////////")
+    console.log(props.transactions)
     selectedRows.value = props.transactions.map(t => t.id);
   }
 }, { deep: true });

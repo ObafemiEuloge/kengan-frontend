@@ -39,6 +39,11 @@ onMounted(async () => {
   if (route.query.tab && typeof route.query.tab === 'string' && tabs.some(tab => tab.id === route.query.tab)) {
     activeTab.value = route.query.tab;
   }
+  
+  // Précharger les catégories
+  if (questionsStore.categories.length === 0) {
+    await questionsStore.fetchCategories(false);
+  }
 });
 
 // Changer d'onglet
@@ -313,7 +318,6 @@ const getTypeLabel = (type: string) => {
     transform: rotate(360deg);
   }
 }
-
 
 span { 
   color: #45515c;

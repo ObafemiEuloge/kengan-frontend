@@ -12,7 +12,7 @@ class DuelSocketManager {
     duelStatusUpdate: [] as ((duel: Duel) => void)[],
     newQuestion: [] as ((question: Question) => void)[],
     playerStatusUpdate: [] as ((playerId: number, status: string) => void)[],
-    playerAnswered: [] as ((playerId: number, isCorrect: boolean) => void)[], // Ajouté
+    playerAnswered: [] as ((playerId: number, is_correct: boolean) => void)[], // Ajouté
     duelEnd: [] as ((result: DuelResult) => void)[]
   };
 
@@ -83,9 +83,9 @@ class DuelSocketManager {
     });
 
     // Événement quand un joueur répond à une question
-    this.socket.on('playerAnswered', (data: { playerId: number, isCorrect: boolean }) => {
+    this.socket.on('playerAnswered', (data: { playerId: number, is_correct: boolean }) => {
       this.callbacks.playerAnswered.forEach(callback => 
-        callback(data.playerId, data.isCorrect)
+        callback(data.playerId, data.is_correct)
       );
     });
 
@@ -128,7 +128,7 @@ class DuelSocketManager {
   }
 
   // Écouter quand un joueur répond
-  onPlayerAnswered(callback: (playerId: number, isCorrect: boolean) => void): void {
+  onPlayerAnswered(callback: (playerId: number, is_correct: boolean) => void): void {
     this.callbacks.playerAnswered.push(callback);
   }
 

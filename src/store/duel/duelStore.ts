@@ -153,7 +153,7 @@ export const useDuelStore = defineStore('duel', {
           optionId,
           playerId: answer.playerId,
           answerTime,
-          isCorrect: answer.isCorrect
+          is_correct: answer.is_correct
         });
         
         return answer;

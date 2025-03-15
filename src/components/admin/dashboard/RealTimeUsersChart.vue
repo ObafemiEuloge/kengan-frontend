@@ -1,137 +1,192 @@
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount, defineProps, watch } from 'vue';
+import { ref, onUnmounted, watch } from 'vue';
 import { Clock } from 'lucide-vue-next';
-import { Line } from 'vue-chartjs';
-import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend } from 'chart.js';
-
-ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend);
 
 const props = defineProps({
   connectedUsers: {
     type: Object,
-    required: true
-  }
-});
-
-// Simulation des données en temps réel
-const chartData = ref({
-  labels: [] as string[],
-  datasets: [
-    {
-      label: 'Utilisateurs en ligne',
-      data: [] as number[],
-      borderColor: '#E63946',
-      backgroundColor: 'rgba(230, 57, 70, 0.1)',
-      tension: 0.4,
-      fill: true
-    }
-  ]
-});
-
-const chartOptions = {
-  responsive: true,
-  maintainAspectRatio: false,
-  plugins: {
-    legend: {
-      display: false
-    },
-    tooltip: {
-      mode: 'index',
-      intersect: false
-    }
+    required: true,
+    default: () => ({
+      current: 0,
+      peak: 0,
+      average: 0
+    })
   },
-  scales: {
-    y: {
-      beginAtZero: true,
-      suggestedMax: props.connectedUsers.peak + 50
-    },
-    x: {
-      ticks: {
-        maxTicksLimit: 8
-      }
+  refreshInterval: {
+    type: Number,
+    default: 30000 // 30 secondes par défaut
+  },
+  showAnimation: {
+    type: Boolean,
+    default: true
+  }
+});
+
+const emit = defineEmits(['refresh']);
+
+// Variables locales
+const lastUpdate = ref(new Date());
+const countDisplay = ref(props.connectedUsers.current);
+const isUpdating = ref(false);
+const updateTimeout = ref(null);
+const animationDuration = 1000; // Durée de l'animation en ms
+
+// Formater le nombre
+const formatNumber = (num) => {
+  return new Intl.NumberFormat('fr-FR').format(num);
+};
+
+// Fonction pour animer le changement de nombre
+const animateCountChange = (newValue) => {
+  if (!props.showAnimation) {
+    countDisplay.value = newValue;
+    return;
+  }
+  
+  isUpdating.value = true;
+  let startValue = countDisplay.value;
+  let endValue = newValue;
+  let startTime = null;
+  
+  // Fonction d'animation
+  const updateCount = (timestamp) => {
+    if (!startTime) startTime = timestamp;
+    const progress = Math.min((timestamp - startTime) / animationDuration, 1);
+    
+    // Fonction d'easing pour une animation plus naturelle
+    const easeOutQuad = t => t * (2 - t);
+    const easedProgress = easeOutQuad(progress);
+    
+    // Mettre à jour la valeur affichée
+    countDisplay.value = Math.round(startValue + (endValue - startValue) * easedProgress);
+    
+    if (progress < 1) {
+      requestAnimationFrame(updateCount);
+    } else {
+      // Animation terminée
+      countDisplay.value = endValue;
+      isUpdating.value = false;
+    }
+  };
+  
+  // Démarrer l'animation
+  requestAnimationFrame(updateCount);
+};
+
+// Simuler une petite variation pour l'UX quand il n'y a pas de mise à jour réelle
+const simulateVariation = () => {
+  if (props.showAnimation && updateTimeout.value === null) {
+    const currentValue = props.connectedUsers.current;
+    const fakeCount = props.connectedUsers.current + Math.floor(Math.random() * 3) - 1;
+    
+    // Ne pas simuler si la vraie valeur est 0
+    if (currentValue > 0) {
+      animateCountChange(Math.max(1, fakeCount));
+      updateTimeout.value = setTimeout(() => {
+        updateTimeout.value = null;
+        // Revenir à la valeur réelle
+        animateCountChange(currentValue);
+      }, 5000); // Revenir à la valeur réelle après 5 secondes
     }
   }
 };
 
-let updateInterval: number | null = null;
-
-const getTime = () => {
-  const now = new Date();
-  return `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
+// Rafraîchir les données sur demande
+const refreshData = () => {
+  emit('refresh');
+  lastUpdate.value = new Date();
 };
 
-const updateChart = () => {
-  // Ajouter de nouvelles données toutes les 5 secondes
-  const currentTime = getTime();
-  const newCount = props.connectedUsers.current + Math.floor(Math.random() * 20) - 10; // Variation aléatoire
-  
-  // Limiter le nombre de points sur le graphique
-  const maxDataPoints = 20;
-  if (chartData.value.labels.length >= maxDataPoints) {
-    chartData.value.labels.shift();
-    chartData.value.datasets[0].data.shift();
-  }
-  
-  chartData.value.labels.push(currentTime);
-  chartData.value.datasets[0].data.push(Math.max(0, newCount));
-};
-
-onMounted(() => {
-  // Initialiser avec quelques données
-  for (let i = 0; i < 5; i++) {
-    const time = getTime();
-    const fakeCount = props.connectedUsers.current + Math.floor(Math.random() * 20) - 10;
-    chartData.value.labels.push(time);
-    chartData.value.datasets[0].data.push(Math.max(0, fakeCount));
-  }
-  
-  // Mettre à jour le graphique toutes les 5 secondes
-  updateInterval = window.setInterval(updateChart, 5000);
-});
-
-onBeforeUnmount(() => {
-  // Nettoyer l'intervalle
-  if (updateInterval !== null) {
-    clearInterval(updateInterval);
-  }
-});
-
-// Réagir aux changements de props
+// Observer les changements dans les propriétés
 watch(() => props.connectedUsers, (newValue) => {
-  // Mettre à jour les échelles si le pic change
-  chartOptions.scales.y.suggestedMax = newValue.peak + 50;
+  if (newValue && newValue.current !== countDisplay.value) {
+    animateCountChange(newValue.current);
+  }
+}, { deep: true });
+
+// Nettoyer les timeouts
+onUnmounted(() => {
+  if (updateTimeout.value) {
+    clearTimeout(updateTimeout.value);
+  }
 });
+
+// Temps écoulé depuis la dernière mise à jour
+const getUpdateTimeAgo = () => {
+  const now = new Date();
+  const diff = now.getTime() - lastUpdate.value.getTime();
+  
+  if (diff < 60000) {
+    return 'à l\'instant';
+  } else if (diff < 120000) {
+    return 'il y a 1 minute';
+  } else if (diff < 3600000) {
+    return `il y a ${Math.floor(diff / 60000)} minutes`;
+  } else {
+    return `il y a ${Math.floor(diff / 3600000)} heures`;
+  }
+};
 </script>
 
 <template>
   <div class="bg-white rounded-lg shadow p-6">
     <div class="flex justify-between items-center mb-4">
       <h3 class="font-heading text-gray-700">Utilisateurs connectés</h3>
-      <span class="flex items-center text-xs text-gray-500">
-        <Clock class="w-4 h-4 mr-1" />
-        Temps réel
-      </span>
-    </div>
-    
-    <div class="flex flex-col items-center justify-center mb-4">
-      <div class="text-5xl font-bold text-secondary mb-2">{{ connectedUsers.current }}</div>
-      <div class="text-sm text-gray-500">utilisateurs en ligne</div>
-    </div>
-    
-    <!-- Graphique -->
-    <div class="h-48 mb-4">
-      <Line :data="chartData" :options="chartOptions" />
-    </div>
-    
-    <div class="w-full flex justify-between text-sm">
-      <div class="text-center">
-        <div class="text-gray-500">Pic aujourd'hui</div>
-        <div class="text-lg font-bold text-gray-800">{{ connectedUsers.peak }}</div>
+      <div class="flex items-center">
+        <span class="text-xs text-gray-500 mr-2">
+          {{ getUpdateTimeAgo() }}
+        </span>
+        <button 
+          @click="refreshData"
+          class="flex items-center text-xs text-gray-500 hover:text-secondary transition-colors"
+        >
+          <Clock class="w-4 h-4 mr-1" />
+          Actualiser
+        </button>
       </div>
-      <div class="text-center">
-        <div class="text-gray-500">Moyenne journalière</div>
-        <div class="text-lg font-bold text-gray-800">{{ connectedUsers.average }}</div>
+    </div>
+    
+    <div class="flex flex-col items-center justify-center py-6">
+      <div :class="['text-5xl font-bold mb-2', isUpdating ? 'text-secondary animate-pulse' : 'text-secondary']">
+        {{ formatNumber(countDisplay) }}
       </div>
+      <div class="text-sm text-gray-500 mb-6">utilisateurs en ligne</div>
+      
+      <div class="w-full flex justify-between text-sm">
+        <div class="text-center">
+          <div class="text-gray-500">Pic aujourd'hui</div>
+          <div class="text-lg font-bold text-gray-800">{{ formatNumber(connectedUsers.peak) }}</div>
+        </div>
+        <div class="text-center">
+          <div class="text-gray-500">Moyenne journalière</div>
+          <div class="text-lg font-bold text-gray-800">{{ formatNumber(connectedUsers.average) }}</div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="mt-4 pt-4 border-t border-gray-100 flex justify-center">
+      <button 
+        @click="simulateVariation"
+        class="text-xs text-gray-400 hover:text-gray-600"
+        title="Simuler une petite variation pour tester l'animation"
+      >
+        Simuler une variation
+      </button>
     </div>
   </div>
 </template>
+
+<style scoped>
+.animate-pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+</style> 

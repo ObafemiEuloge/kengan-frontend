@@ -32,7 +32,7 @@ const menuItems = [
   { 
     name: 'Tableau de bord', 
     route: '/dashboard', 
-    icon: HomeIcon 
+    icon: HomeIcon  
   },
   { 
     name: 'Profil', 

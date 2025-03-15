@@ -26,10 +26,16 @@ export interface AdminNotification {
   message: string;
   is_read: boolean;
   created_at: string;
-  updated_at?: string;
-  icon?: any;
   type?: string;
   link?: string;
+  icon?: any;
+}
+
+// Interface pour les statistiques des utilisateurs connectés
+export interface ConnectedUsersStats {
+  current: number;
+  peak: number;
+  average: number;
 }
 
 // Valeurs par défaut pour éviter les erreurs en cas de problème de chargement
@@ -223,6 +229,43 @@ export const adminService = {
     } catch (error) {
       console.error('Erreur lors du marquage de toutes les notifications:', error);
       return false;
+    }
+  },
+  
+  /**
+   * Récupère les statistiques des utilisateurs connectés en temps réel
+   */
+  async getConnectedUsersStats(): Promise<ConnectedUsersStats> {
+    try {
+      console.log('Récupération des statistiques des utilisateurs connectés');
+      const response = await api.get('/admin/users/connected/');
+      
+      // Utiliser la fonction utilitaire pour extraire les données
+      const responseData = getResponseData(response);
+      
+      console.log('Statistiques des utilisateurs connectés reçues (format brut):', response);
+      console.log('Données traitées:', responseData);
+      
+      if (responseData) {
+        return {
+          current: responseData.current || 0,
+          peak: responseData.peak || 0,
+          average: responseData.average || 0
+        };
+      }
+      
+      return {
+        current: 0,
+        peak: 0,
+        average: 0
+      };
+    } catch (error) {
+      console.error('Erreur lors de la récupération des statistiques des utilisateurs connectés:', error);
+      return {
+        current: 0,
+        peak: 0,
+        average: 0
+      };
     }
   }
 };

@@ -2,7 +2,20 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import { useTransactionsStore } from '../../store/wallet/transactionsStore';
-import { FileTextIcon, DownloadIcon, PrinterIcon, ShareIcon, SearchIcon } from 'lucide-vue-next';
+import { format } from 'date-fns';
+import { fr } from 'date-fns/locale';
+import { 
+  Download, 
+  Printer, 
+  Mail, 
+  Search, 
+  RefreshCw,
+  FileText,
+  CreditCard,
+  Award,
+  TrendingUp,
+  TrendingDown
+} from 'lucide-vue-next';
 import BaseCard from '../ui/BaseCard.vue';
 import BaseButton from '../ui/BaseButton.vue';
 import BaseInput from '../ui/BaseInput.vue';
@@ -11,7 +24,8 @@ const transactionsStore = useTransactionsStore();
 
 // État du composant
 const searchQuery = ref('');
-const selectedTransaction = ref<number | null>(null);
+const selectedReceipt = ref(null);
+const showReceiptModal = ref(false);
 const isLoading = ref(false);
 const currentPage = ref(1);
 const itemsPerPage = 8;
@@ -35,8 +49,8 @@ const totalPages = computed(() => {
 
 // Transaction actuellement sélectionnée
 const selectedTransactionDetails = computed(() => {
-  if (selectedTransaction.value === null) return null;
-  return transactionsStore.getTransactionById(selectedTransaction.value);
+  if (selectedReceipt.value === null) return null;
+  return transactionsStore.getTransactionById(selectedReceipt.value);
 });
 
 // Charger les transactions au montage du composant
@@ -47,25 +61,22 @@ onMounted(async () => {
   
   // Sélectionner la première transaction par défaut si disponible
   if (completedTransactions.value.length > 0) {
-    selectedTransaction.value = completedTransactions.value[0].id;
+    selectedReceipt.value = completedTransactions.value[0].id;
   }
 });
 
 // Formatage des dates
 const formatDate = (dateString: string): string => {
-  const date = new Date(dateString);
-  return date.toLocaleDateString('fr-FR', { 
-    day: '2-digit', 
-    month: '2-digit', 
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit'
-  });
+  try {
+    return format(new Date(dateString), 'dd MMMM yyyy HH:mm', { locale: fr });
+  } catch (e) {
+    return dateString;
+  }
 };
 
 // Formatage des montants
 const formatAmount = (amount: number): string => {
-  return amount.toLocaleString() + ' FCFA';
+  return new Intl.NumberFormat('fr-FR').format(amount);
 };
 
 // Obtenir le texte du type de transaction
@@ -88,9 +99,24 @@ const getTransactionTypeText = (type: string): string => {
   }
 };
 
+// Obtenir l'icône en fonction du type de transaction
+const getTypeIcon = (type: string) => {
+  switch (type) {
+    case 'deposit':
+      return TrendingUp;
+    case 'withdrawal':
+      return TrendingDown;
+    case 'duel_win':
+    case 'duel_loss':
+      return Award;
+    default:
+      return CreditCard;
+  }
+};
+
 // Sélectionner une transaction
 const selectTransaction = (id: number) => {
-  selectedTransaction.value = id;
+  selectedReceipt.value = id;
 };
 
 // Pagination
@@ -119,19 +145,27 @@ const printReceipt = () => {
   window.print();
 };
 
-// Partager le reçu (simulé)
-const shareReceipt = () => {
-  if (!selectedTransactionDetails.value) return;
+// Envoyer un reçu par e-mail (simulation)
+const emailReceipt = (receipt) => {
+  // Dans une implémentation réelle, appelez une API pour envoyer le reçu par e-mail
+  console.log(`Envoi du reçu pour la transaction ${receipt.id} par e-mail`);
   
-  // Dans une application réelle, cela utiliserait l'API Web Share si disponible
-  if (navigator.share) {
-    navigator.share({
-      title: `KENGAN - Reçu de transaction #${selectedTransactionDetails.value.id}`,
-      text: `Reçu pour ${getTransactionTypeText(selectedTransactionDetails.value.type)} de ${formatAmount(selectedTransactionDetails.value.amount)}`,
-      url: window.location.href
-    });
-  } else {
-    alert('Fonctionnalité de partage non disponible sur ce navigateur');
+  // Simuler l'envoi avec une alerte
+  setTimeout(() => {
+    alert(`Le reçu pour la transaction ${receipt.id} a été envoyé par e-mail`);
+  }, 500);
+};
+
+// Récupérer les transactions
+const fetchTransactions = async () => {
+  isLoading.value = true;
+  
+  try {
+    await transactionsStore.fetchTransactions();
+  } catch (error) {
+    console.error('Erreur lors de la récupération des transactions:', error);
+  } finally {
+    isLoading.value = false;
   }
 };
 </script>
@@ -140,7 +174,7 @@ const shareReceipt = () => {
   <BaseCard>
     <div class="flex items-center justify-between mb-6">
       <h2 class="text-2xl font-heading text-white flex items-center">
-        <FileTextIcon class="w-6 h-6 mr-2 text-accent" />
+        <FileText class="w-6 h-6 mr-2 text-accent" />
         REÇUS DE TRANSACTIONS
       </h2>
     </div>
@@ -152,7 +186,7 @@ const shareReceipt = () => {
         :disabled="isLoading"
       >
         <template #before>
-          <SearchIcon class="w-5 h-5 text-gray-500" />
+          <Search class="w-5 h-5 text-gray-500" />
         </template>
       </BaseInput>
     </div>
@@ -162,7 +196,7 @@ const shareReceipt = () => {
     </div>
     
     <div v-else-if="completedTransactions.length === 0" class="text-center py-12">
-      <FileTextIcon class="w-16 h-16 text-gray-600 mx-auto mb-4" />
+      <FileText class="w-16 h-16 text-gray-600 mx-auto mb-4" />
       <h3 class="text-xl font-heading text-white mb-2">Aucun reçu disponible</h3>
       <p class="text-gray-400">
         Les reçus seront disponibles ici une fois que vous aurez effectué des transactions.
@@ -179,7 +213,7 @@ const shareReceipt = () => {
             v-for="transaction in completedTransactions"
             :key="transaction.id"
             class="p-3 rounded-lg border cursor-pointer transition-colors duration-200"
-            :class="selectedTransaction === transaction.id 
+            :class="selectedReceipt === transaction.id 
               ? 'bg-primary-light border-secondary' 
               : 'bg-primary border-gray-800 hover:border-gray-600'"
             @click="selectTransaction(transaction.id)"
@@ -187,7 +221,7 @@ const shareReceipt = () => {
             <div class="flex justify-between items-start">
               <div>
                 <p class="text-white font-medium">{{ getTransactionTypeText(transaction.type) }}</p>
-                <p class="text-sm text-gray-400">{{ formatDate(transaction.createdAt) }}</p>
+                <p class="text-sm text-gray-400">{{ formatDate(transaction.createdAt).split(' ')[0] }}</p>
               </div>
               <div class="text-right">
                 <p class="font-bold" :class="transaction.type === 'deposit' || transaction.type === 'duel_win' || transaction.type === 'refund' ? 'text-green-500' : 'text-red-500'">
@@ -227,7 +261,7 @@ const shareReceipt = () => {
       </div>
       
       <!-- Détail du reçu sélectionné -->
-      <div class="lg:col-span-2" v-if="selectedTransactionDetails">
+      <div class="lg:col-span-2" v-if="selectedReceipt">
         <div class="bg-white text-gray-900 rounded-lg p-6 shadow-lg receipt-container">
           <!-- En-tête du reçu -->
           <div class="flex justify-between items-start mb-6 pb-4 border-b border-gray-200">
@@ -237,8 +271,8 @@ const shareReceipt = () => {
             </div>
             <div class="text-right">
               <h2 class="text-xl font-bold text-primary">REÇU DE TRANSACTION</h2>
-              <p class="text-sm text-gray-600">Date: {{ formatDate(selectedTransactionDetails.createdAt) }}</p>
-              <p class="text-sm text-gray-600">Référence: {{ selectedTransactionDetails.reference || `#${selectedTransactionDetails.id}` }}</p>
+              <p class="text-sm text-gray-600">Date: {{ formatDate(selectedReceipt.createdAt) }}</p>
+              <p class="text-sm text-gray-600">Référence: {{ selectedReceipt.reference || `#${selectedReceipt.id}` }}</p>
             </div>
           </div>
           
@@ -248,26 +282,26 @@ const shareReceipt = () => {
             <table class="w-full">
               <tr>
                 <td class="py-2 text-gray-600">Type:</td>
-                <td class="py-2 font-medium">{{ getTransactionTypeText(selectedTransactionDetails.type) }}</td>
+                <td class="py-2 font-medium">{{ getTransactionTypeText(selectedReceipt.type) }}</td>
               </tr>
               <tr>
                 <td class="py-2 text-gray-600">Montant:</td>
-                <td class="py-2 font-bold" :class="selectedTransactionDetails.type === 'deposit' || selectedTransactionDetails.type === 'duel_win' || selectedTransactionDetails.type === 'refund' ? 'text-green-700' : 'text-red-700'">
-                  {{ selectedTransactionDetails.type === 'deposit' || selectedTransactionDetails.type === 'duel_win' || selectedTransactionDetails.type === 'refund' ? '+' : '-' }}
-                  {{ formatAmount(selectedTransactionDetails.amount) }}
+                <td class="py-2 font-bold" :class="selectedReceipt.type === 'deposit' || selectedReceipt.type === 'duel_win' || selectedReceipt.type === 'refund' ? 'text-green-700' : 'text-red-700'">
+                  {{ selectedReceipt.type === 'deposit' || selectedReceipt.type === 'duel_win' || selectedReceipt.type === 'refund' ? '+' : '-' }}
+                  {{ formatAmount(selectedReceipt.amount) }}
                 </td>
               </tr>
-              <tr v-if="selectedTransactionDetails.fee > 0">
+              <tr v-if="selectedReceipt.fee > 0">
                 <td class="py-2 text-gray-600">Frais:</td>
-                <td class="py-2">{{ formatAmount(selectedTransactionDetails.fee) }}</td>
+                <td class="py-2">{{ formatAmount(selectedReceipt.fee) }}</td>
               </tr>
-              <tr v-if="selectedTransactionDetails.duelId">
+              <tr v-if="selectedReceipt.duelId">
                 <td class="py-2 text-gray-600">Duel:</td>
-                <td class="py-2">Duel #{{ selectedTransactionDetails.duelId }}</td>
+                <td class="py-2">Duel #{{ selectedReceipt.duelId }}</td>
               </tr>
               <tr>
                 <td class="py-2 text-gray-600">Description:</td>
-                <td class="py-2">{{ selectedTransactionDetails.description }}</td>
+                <td class="py-2">{{ selectedReceipt.description }}</td>
               </tr>
               <tr>
                 <td class="py-2 text-gray-600">Statut:</td>
@@ -294,7 +328,7 @@ const shareReceipt = () => {
             size="sm"
             @click="downloadReceipt"
           >
-            <DownloadIcon class="w-4 h-4 mr-1" />
+            <Download class="w-4 h-4 mr-1" />
             Télécharger
           </BaseButton>
           
@@ -303,17 +337,17 @@ const shareReceipt = () => {
             size="sm"
             @click="printReceipt"
           >
-            <PrinterIcon class="w-4 h-4 mr-1" />
+            <Printer class="w-4 h-4 mr-1" />
             Imprimer
           </BaseButton>
           
           <BaseButton
             variant="outline"
             size="sm"
-            @click="shareReceipt"
+            @click="emailReceipt(selectedReceipt)"
           >
-            <ShareIcon class="w-4 h-4 mr-1" />
-            Partager
+            <Mail class="w-4 h-4 mr-1" />
+            Envoyer par e-mail
           </BaseButton>
         </div>
       </div>
@@ -321,7 +355,7 @@ const shareReceipt = () => {
       <!-- Aucun reçu sélectionné -->
       <div class="lg:col-span-2 flex items-center justify-center" v-else>
         <div class="text-center py-12">
-          <FileTextIcon class="w-16 h-16 text-gray-600 mx-auto mb-4" />
+          <FileText class="w-16 h-16 text-gray-600 mx-auto mb-4" />
           <h3 class="text-xl font-heading text-white mb-2">Sélectionnez un reçu</h3>
           <p class="text-gray-400">
             Cliquez sur une transaction dans la liste pour voir son reçu détaillé.

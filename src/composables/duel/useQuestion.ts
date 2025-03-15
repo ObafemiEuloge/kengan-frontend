@@ -59,7 +59,7 @@ export function useQuestion() {
         time
       );
       
-      return !!result?.isCorrect;
+      return !!result?.is_correct;
     } catch (err: any) {
       error.value = err.message || "Impossible de soumettre la réponse";
       return false;

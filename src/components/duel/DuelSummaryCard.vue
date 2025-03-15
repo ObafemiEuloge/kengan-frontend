@@ -14,7 +14,7 @@ const props = defineProps({
         obj &&
         typeof obj.category === 'string' &&
         typeof obj.stake === 'number' &&
-        typeof obj.questionCount === 'number' &&
+        typeof obj.question_count === 'number' &&
         typeof obj.timeLimit === 'number'
       );
     }
@@ -68,7 +68,7 @@ const winAmount = computed(() => {
       
       <div class="flex items-center justify-between py-2 border-b border-gray-800">
         <div class="text-gray-400">Nombre de questions</div>
-        <div class="text-white">{{ duel.questionCount }}</div>
+        <div class="text-white">{{ duel.question_count }}</div>
       </div>
       
       <div class="flex items-center justify-between py-2 border-b border-gray-800">

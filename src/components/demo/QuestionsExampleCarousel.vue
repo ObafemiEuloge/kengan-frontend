@@ -60,7 +60,7 @@ const selectOption = (questionIndex: number, optionId: number) => {
   showAnswers.value[questionIndex] = true;
 };
 
-const isCorrect = (questionIndex: number, optionId: number) => {
+const is_correct = (questionIndex: number, optionId: number) => {
   return exampleQuestions.value[questionIndex].correctOption === optionId;
 };
 
@@ -105,11 +105,11 @@ const modules = [Pagination, Navigation];
               class="p-3 rounded-md text-left transition-all duration-200 border"
               :class="[
                 selectedOptions[qIndex] === option.id ? (
-                  isCorrect(qIndex, option.id) ? 'bg-green-900 border-green-500' : 'bg-red-900 border-red-500'
+                  is_correct(qIndex, option.id) ? 'bg-green-900 border-green-500' : 'bg-red-900 border-red-500'
                 ) : 'bg-primary-light border-gray-700 hover:border-accent',
                 {
-                  'opacity-75': showAnswers[qIndex] && selectedOptions[qIndex] !== option.id && !isCorrect(qIndex, option.id),
-                  'border-green-500 bg-green-900 bg-opacity-30': showAnswers[qIndex] && isCorrect(qIndex, option.id) && selectedOptions[qIndex] !== option.id
+                  'opacity-75': showAnswers[qIndex] && selectedOptions[qIndex] !== option.id && !is_correct(qIndex, option.id),
+                  'border-green-500 bg-green-900 bg-opacity-30': showAnswers[qIndex] && is_correct(qIndex, option.id) && selectedOptions[qIndex] !== option.id
                 }
               ]"
               @click="selectOption(qIndex, option.id)"
@@ -125,10 +125,10 @@ const modules = [Pagination, Navigation];
           </div>
           
           <div v-if="showAnswers[qIndex]" class="mt-4 text-center">
-            <p class="text-lg" :class="isCorrect(qIndex, selectedOptions[qIndex]) ? 'text-green-400' : 'text-red-400'">
-              {{ isCorrect(qIndex, selectedOptions[qIndex]) ? 'Bonne réponse!' : 'Réponse incorrecte!' }}
+            <p class="text-lg" :class="is_correct(qIndex, selectedOptions[qIndex]) ? 'text-green-400' : 'text-red-400'">
+              {{ is_correct(qIndex, selectedOptions[qIndex]) ? 'Bonne réponse!' : 'Réponse incorrecte!' }}
             </p>
-            <p v-if="!isCorrect(qIndex, selectedOptions[qIndex])" class="text-accent">
+            <p v-if="!is_correct(qIndex, selectedOptions[qIndex])" class="text-accent">
               La bonne réponse était: {{ question.options.find(o => o.id === question.correctOption)?.text }}
             </p>
           </div>

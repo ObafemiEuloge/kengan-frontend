@@ -1,493 +1,412 @@
-// src/pages/admin/TransactionsManagementView.vue
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, onMounted, computed, watch } from 'vue';
+import { useAdminTransactionStore } from '../../store/admin/adminTransactionsStore';
 import { 
+  RefreshCw, 
   Search, 
   Filter, 
-  ArrowUpDown, 
-  Eye, 
-  Download, 
-  Check, 
-  X, 
+  MoreHorizontal, 
+  ChevronLeft, 
+  ChevronRight, 
   AlertCircle, 
-  FileText,
-  Calendar,
-  DollarSign,
+  CheckCircle, 
+  XCircle, 
   CreditCard,
-  Wallet
+  Download, 
+  Wallet, 
+  Award, 
+  DollarSign, 
+  FileText, 
+  X
 } from 'lucide-vue-next';
-import BaseModal from '../../components/ui/BaseModal.vue';
-import BaseButton from '../../components/ui/BaseButton.vue';
-import BaseInput from '../../components/ui/BaseInput.vue';
-import BaseAlert from '../../components/ui/BaseAlert.vue';
+import BaseButton from '@/components/ui/BaseButton.vue';
+import BaseInput from '@/components/ui/BaseInput.vue';
+import BaseSelect from '@/components/ui/BaseSelect.vue';
+import BaseAlert from '@/components/ui/BaseAlert.vue';
+import ManualTransactionForm from '@/components/admin/transactions/ManualTransactionForm.vue';
+import { adminTransactionsService, type Transaction, type TransactionFilters, type PaginatedResponse, type TransactionStats } from '@/services/adminTransactionsService';
 
-// État local pour la gestion des transactions
-const transactions = ref([
-  {
-    id: 'TRX-00123',
-    userId: 1,
-    username: 'MangaKing',
-    type: 'deposit',
-    amount: 10000,
-    fee: 500,
-    netAmount: 9500,
-    status: 'completed',
-    method: 'Orange Money',
-    reference: 'OM-3847629',
-    date: '2024-03-06T14:30:00',
-    description: 'Rechargement de compte'
-  },
-  {
-    id: 'TRX-00124',
-    userId: 4,
-    username: 'MangaQueen',
-    type: 'deposit',
-    amount: 15000,
-    fee: 750,
-    netAmount: 14250,
-    status: 'completed',
-    method: 'MTN Mobile Money',
-    reference: 'MTN-9876543',
-    date: '2024-03-06T12:15:00',
-    description: 'Rechargement de compte'
-  },
-  {
-    id: 'TRX-00125',
-    userId: 2,
-    username: 'OnePieceGuru',
-    type: 'withdrawal',
-    amount: 25000,
-    fee: 1250,
-    netAmount: 23750,
-    status: 'pending',
-    method: 'Virement bancaire',
-    reference: 'WD-1234567',
-    date: '2024-03-06T10:45:00',
-    description: 'Retrait de gains'
-  },
-  {
-    id: 'TRX-00126',
-    userId: 3,
-    username: 'AnimeFighter',
-    type: 'deposit',
-    amount: 5000,
-    fee: 250,
-    netAmount: 4750,
-    status: 'failed',
-    method: 'Carte bancaire',
-    reference: 'CARD-8374629',
-    date: '2024-03-05T18:30:00',
-    description: 'Rechargement de compte - Échec de paiement'
-  },
-  {
-    id: 'TRX-00127',
-    userId: 5,
-    username: 'NarutoFan99',
-    type: 'duel_win',
-    amount: 8000,
-    fee: 800,
-    netAmount: 7200,
-    status: 'completed',
-    method: 'Interne',
-    reference: 'DUEL-5829',
-    date: '2024-03-05T16:20:00',
-    description: 'Gain de duel'
-  },
-  {
-    id: 'TRX-00128',
-    userId: 6,
-    username: 'OtakuLegend',
-    type: 'duel_loss',
-    amount: 8000,
-    fee: 0,
-    netAmount: -8000,
-    status: 'completed',
-    method: 'Interne',
-    reference: 'DUEL-5829',
-    date: '2024-03-05T16:20:00',
-    description: 'Perte de duel'
-  },
-  {
-    id: 'TRX-00129',
-    userId: 2,
-    username: 'OnePieceGuru',
-    type: 'withdrawal',
-    amount: 15000,
-    fee: 750,
-    netAmount: 14250,
-    status: 'completed',
-    method: 'Orange Money',
-    reference: 'OM-9283746',
-    date: '2024-03-05T11:10:00',
-    description: 'Retrait de gains'
-  },
-  {
-    id: 'TRX-00130',
-    userId: 4,
-    username: 'MangaQueen',
-    type: 'commission',
-    amount: 800,
-    fee: 0,
-    netAmount: 800,
-    status: 'completed',
-    method: 'Interne',
-    reference: 'DUEL-5829',
-    date: '2024-03-05T16:20:00',
-    description: 'Commission de duel'
-  }
-]);
-
-// Pagination
-const pagination = ref({
-  currentPage: 1,
-  totalPages: 10,
-  totalTransactions: 348,
-  perPage: 8
-});
-
-// Filtres et recherche
-const searchQuery = ref('');
-const statusFilter = ref('all');
-const typeFilter = ref('all');
-const dateRange = ref({ from: '', to: '' });
-const sortBy = ref('date');
-const sortOrder = ref('desc');
-
-// Modales
+// État des modales
 const transactionDetailsModal = ref(false);
 const manualTransactionModal = ref(false);
 const manualReversalModal = ref(false);
 const selectedTransaction = ref(null);
-
-// Formulaire de transaction manuelle
-const manualTransaction = ref({
-  userId: '',
-  username: '',
-  type: 'deposit',
-  amount: 0,
-  method: 'manual',
-  description: '',
-  reference: ''
+const rejectionReason = ref('');
+const showAlert = ref(false);
+const alertType = ref('info');
+const alertMessage = ref('');
+const searchQuery = ref('');
+const filters = ref({
+  page: 1,
+  pageSize: 10,
+  sortBy: 'date',
+  sortOrder: 'desc'
 });
 
-// Message d'alerte
-const alertMessage = ref('');
-const alertType = ref('info');
-const showAlert = ref(false);
+// État des transactions
+const transactionStore = useAdminTransactionStore();
+// const transactions = computed(() => transactionStore.getTransactions());
+// const selectedTransaction = ref<Transaction | null>(null);
+// const isLoading = ref<boolean>(false);
+// const error = ref<string | null>(null);
+// const showAlert = ref<boolean>(false);
+// const alertType = ref<'success' | 'error' | 'info'>('info');
+// const alertMessage = ref<string>('');
+
+const transactions = computed(() => transactionStore.transactions);
+const transactionStats = computed(() => transactionStore.stats);
+const isLoading = computed(() => transactionStore.loading);
+const error = computed(() => transactionStore.error);
+
+// État des filtres
+// const filters = ref<TransactionFilters>({
+//   page: 1,
+//   pageSize: 10,
+//   sortBy: 'date',
+//   sortOrder: 'desc'
+// });
+// const searchQuery = ref<string>('');
+
+// État de la pagination
+const pagination = ref({
+  currentPage: 1,
+  totalPages: 1,
+  totalItems: 0
+});
 
 // Statistiques des transactions
-const transactionStats = ref({
-  totalDeposits: {
-    count: 156,
-    amount: 1845000,
-    growth: 12.5
-  },
-  totalWithdrawals: {
-    count: 87,
-    amount: 1256000,
-    growth: 8.3
-  },
-  totalCommissions: {
-    count: 105,
-    amount: 267000,
-    growth: 15.2
-  },
-  conversionRate: 87.4,
-  pendingWithdrawals: 18,
-  failedTransactions: 12
-});
+// const transactionStats = computed(() => transactionStore.getStats);
 
-// Chargement initial
+// Raison de rejet/annulation
+// const rejectionReason = ref<string>('');
+
+// Options de filtrage
+const transactionTypes = [
+  { value: '', label: 'Tous les types' },
+  { value: 'deposit', label: 'Dépôt' },
+  { value: 'withdrawal', label: 'Retrait' },
+  { value: 'duel_win', label: 'Gain de duel' },
+  { value: 'duel_loss', label: 'Perte de duel' },
+  { value: 'commission', label: 'Commission' },
+  { value: 'refund', label: 'Remboursement' },
+  { value: 'reversal', label: 'Annulation' }
+];
+
+const transactionStatuses = [
+  { value: '', label: 'Tous les statuts' },
+  { value: 'pending', label: 'En attente' },
+  { value: 'completed', label: 'Complétée' },
+  { value: 'failed', label: 'Échouée' },
+  { value: 'cancelled', label: 'Annulée' }
+];
+
+// Chargement initial des données
 onMounted(async () => {
-  // Dans une implémentation réelle, vous chargeriez les transactions depuis l'API
-  // await adminTransactionsStore.fetchTransactions();
+  await Promise.all([
+    fetchTransactions(),
+    fetchTransactionStats()
+  ]);
 });
 
-// Fonctions calculées
-const filteredTransactions = computed(() => {
-  let result = [...transactions.value];
-  
-  // Appliquer la recherche
-  if (searchQuery.value) {
-    const query = searchQuery.value.toLowerCase();
-    result = result.filter(transaction => 
-      transaction.id.toLowerCase().includes(query) || 
-      transaction.username.toLowerCase().includes(query) ||
-      transaction.reference.toLowerCase().includes(query)
-    );
-  }
-  
-  // Appliquer le filtre de statut
-  if (statusFilter.value !== 'all') {
-    result = result.filter(transaction => transaction.status === statusFilter.value);
-  }
-  
-  // Appliquer le filtre de type
-  if (typeFilter.value !== 'all') {
-    result = result.filter(transaction => transaction.type === typeFilter.value);
-  }
-  
-  // Appliquer le filtre de date
-  if (dateRange.value.from) {
-    const fromDate = new Date(dateRange.value.from);
-    result = result.filter(transaction => new Date(transaction.date) >= fromDate);
-  }
-  
-  if (dateRange.value.to) {
-    const toDate = new Date(dateRange.value.to);
-    result = result.filter(transaction => new Date(transaction.date) <= toDate);
-  }
-  
-  // Appliquer le tri
-  result.sort((a, b) => {
-    let comparison = 0;
+// Observer les changements de filtres pour recharger les données
+watch([filters, searchQuery], () => {
+  fetchTransactions();
+}, { deep: true });
+
+// Fonctions de chargement des données
+async function fetchTransactions() {
+  try {
+    // Définir les filtres dans le store
+    transactionStore.setFilters({
+      ...filters.value,
+      ...(searchQuery.value ? { username: searchQuery.value } : {})
+    });
     
-    // Tri selon le champ sélectionné
-    if (sortBy.value === 'id') {
-      comparison = a.id.localeCompare(b.id);
-    } else if (sortBy.value === 'amount') {
-      comparison = a.amount - b.amount;
-    } else if (sortBy.value === 'username') {
-      comparison = a.username.localeCompare(b.username);
-    } else { // Par défaut, tri par date
-      comparison = new Date(a.date).getTime() - new Date(b.date).getTime();
-    }
+    // Appeler l'action pour récupérer les transactions
+    await transactionStore.fetchTransactions();
     
-    // Appliquer l'ordre (asc ou desc)
-    return sortOrder.value === 'asc' ? comparison : -comparison;
-  });
-  
-  return result;
-});
+    // Mettre à jour la pagination locale
+    pagination.value = {
+      currentPage: transactionStore.pagination.page,
+      totalPages: transactionStore.pagination.totalPages,
+      totalItems: transactionStore.pagination.totalItems
+    };
+  } catch (err) {
+    console.error('Erreur lors du chargement des transactions:', err);
+  }
+}
+
+async function fetchTransactionStats() {
+  try {
+    await transactionStore.fetchTransactionStats();
+  } catch (err) {
+    console.error('Erreur lors du chargement des statistiques:', err);
+  }
+}
 
 // Fonctions de gestion des transactions
-const viewTransactionDetails = (transaction) => {
+const viewTransactionDetails = (transaction: Transaction) => {
   selectedTransaction.value = transaction;
   transactionDetailsModal.value = true;
 };
 
+const closeDetailsModal = () => {
+  transactionDetailsModal.value = false;
+  selectedTransaction.value = null;
+};
+
 const openManualTransactionModal = () => {
-  manualTransaction.value = {
-    userId: '',
-    username: '',
-    type: 'deposit',
-    amount: 0,
-    method: 'manual',
-    description: '',
-    reference: ''
-  };
-  
   manualTransactionModal.value = true;
 };
 
-const openManualReversalModal = (transaction) => {
+const closeManualTransactionModal = () => {
+  manualTransactionModal.value = false;
+};
+
+const openManualReversalModal = (transaction: Transaction) => {
   selectedTransaction.value = transaction;
   manualReversalModal.value = true;
 };
 
-const downloadReceipt = (transactionId) => {
-  // Simuler le téléchargement d'un reçu
+const downloadReceipt = async (transactionId: number) => {
+  try {
+    await adminTransactionsService.generateReceipt(transactionId);
+    
+    // Afficher une alerte de succès
   showAlert.value = true;
   alertType.value = 'info';
-  alertMessage.value = `Le reçu pour la transaction ${transactionId} est en cours de téléchargement.`;
+    alertMessage.value = 'Le reçu a été téléchargé avec succès.';
   
-  // Masquer l'alerte après quelques secondes
   setTimeout(() => {
     showAlert.value = false;
   }, 3000);
-};
-
-const approveTransaction = (transactionId) => {
-  // Simuler l'approbation d'une transaction
-  const transactionIndex = transactions.value.findIndex(t => t.id === transactionId);
-  if (transactionIndex !== -1 && transactions.value[transactionIndex].status === 'pending') {
-    transactions.value[transactionIndex].status = 'completed';
+  } catch (err) {
+    console.error('Erreur lors du téléchargement du reçu:', err);
     
-    showAlert.value = true;
-    alertType.value = 'success';
-    alertMessage.value = `La transaction ${transactionId} a été approuvée avec succès.`;
-    
-    // Masquer l'alerte après quelques secondes
-    setTimeout(() => {
-      showAlert.value = false;
-    }, 3000);
-  }
-};
-
-const rejectTransaction = (transactionId) => {
-  // Simuler le rejet d'une transaction
-  const transactionIndex = transactions.value.findIndex(t => t.id === transactionId);
-  if (transactionIndex !== -1 && transactions.value[transactionIndex].status === 'pending') {
-    transactions.value[transactionIndex].status = 'failed';
-    
-    showAlert.value = true;
-    alertType.value = 'success';
-    alertMessage.value = `La transaction ${transactionId} a été rejetée.`;
-    
-    // Masquer l'alerte après quelques secondes
-    setTimeout(() => {
-      showAlert.value = false;
-    }, 3000);
-  }
-};
-
-const createManualTransaction = () => {
-  // Simuler la création d'une transaction manuelle
-  if (!manualTransaction.value.username || !manualTransaction.value.amount || !manualTransaction.value.description) {
     showAlert.value = true;
     alertType.value = 'error';
-    alertMessage.value = "Veuillez remplir tous les champs obligatoires.";
+    alertMessage.value = 'Erreur lors du téléchargement du reçu.';
     
-    // Masquer l'alerte après quelques secondes
     setTimeout(() => {
       showAlert.value = false;
     }, 3000);
-    
+  }
+};
+
+const approveTransaction = async (transactionId: number) => {
+  if (!confirm('Êtes-vous sûr de vouloir approuver cette transaction ?')) {
     return;
   }
   
-  // Créer un ID de transaction unique
-  const newId = `TRX-${Math.floor(Math.random() * 100000).toString().padStart(5, '0')}`;
+  isLoading.value = true;
   
-  // Créer la nouvelle transaction
-  const newTransaction = {
-    id: newId,
-    userId: parseInt(manualTransaction.value.userId) || 0,
-    username: manualTransaction.value.username,
-    type: manualTransaction.value.type,
-    amount: manualTransaction.value.amount,
-    fee: manualTransaction.value.type === 'deposit' ? Math.round(manualTransaction.value.amount * 0.05) : 0,
-    netAmount: manualTransaction.value.type === 'deposit' 
-      ? manualTransaction.value.amount - Math.round(manualTransaction.value.amount * 0.05)
-      : -manualTransaction.value.amount,
-    status: 'completed',
-    method: 'Manuel',
-    reference: manualTransaction.value.reference || `MANUAL-${Date.now()}`,
-    date: new Date().toISOString(),
-    description: manualTransaction.value.description
-  };
+  try {
+    await transactionStore.approveTransaction(transactionId);
+    
+    // Afficher une alerte de succès
+    showAlert.value = true;
+    alertType.value = 'success';
+    alertMessage.value = transactionStore.getSuccessMessage() || 'La transaction a été approuvée avec succès.';
+    
+    // Fermer le modal si ouvert
+    if (transactionDetailsModal.value && selectedTransaction.value?.id === transactionId) {
+      closeDetailsModal();
+    }
+  } catch (err) {
+    console.error('Erreur lors de l\'approbation de la transaction:', err);
+    
+    showAlert.value = true;
+    alertType.value = 'error';
+    alertMessage.value = transactionStore.getError() || 'Erreur lors de l\'approbation de la transaction.';
+  } finally {
+    isLoading.value = false;
+    setTimeout(() => {
+      showAlert.value = false;
+    }, 3000);
+  }
+};
+    
+const rejectTransaction = async (transactionId: number) => {
+  rejectionReason.value = prompt('Veuillez indiquer la raison du rejet:') || '';
   
-  // Ajouter la transaction au tableau
-  transactions.value.unshift(newTransaction);
+  if (!rejectionReason.value) {
+    return;
+  }
   
-  // Fermer la modale
-  manualTransactionModal.value = false;
+  isLoading.value = true;
   
-  // Afficher un message de succès
+  try {
+    await adminTransactionsService.rejectTransaction(transactionId, rejectionReason.value);
+    
+    // Afficher une alerte de succès
   showAlert.value = true;
   alertType.value = 'success';
-  alertMessage.value = `La transaction ${newId} a été créée avec succès.`;
-  
-  // Masquer l'alerte après quelques secondes
+    alertMessage.value = 'La transaction a été rejetée avec succès.';
+    
+    // Recharger les données
+    await fetchTransactions();
+    await fetchTransactionStats();
+    
+    // Fermer le modal si ouvert
+    if (transactionDetailsModal.value && selectedTransaction.value?.id === transactionId) {
+      closeDetailsModal();
+    }
+  } catch (err) {
+    console.error('Erreur lors du rejet de la transaction:', err);
+    
+    showAlert.value = true;
+    alertType.value = 'error';
+    alertMessage.value = 'Erreur lors du rejet de la transaction.';
+  } finally {
+    isLoading.value = false;
   setTimeout(() => {
     showAlert.value = false;
   }, 3000);
+  }
 };
 
-const createReversal = () => {
+const handleManualReversal = async () => {
   if (!selectedTransaction.value) return;
   
-  const originalTransaction = selectedTransaction.value;
+  rejectionReason.value = prompt('Veuillez indiquer la raison de l\'annulation:') || '';
   
-  // Créer un ID de transaction unique pour l'annulation
-  const newId = `TRX-${Math.floor(Math.random() * 100000).toString().padStart(5, '0')}`;
+  if (!rejectionReason.value) {
+    return;
+  }
   
-  // Créer la transaction d'annulation
-  const reversalTransaction = {
-    id: newId,
-    userId: originalTransaction.userId,
-    username: originalTransaction.username,
-    type: originalTransaction.type === 'deposit' ? 'refund' : 'reversal',
-    amount: originalTransaction.amount,
-    fee: 0,
-    netAmount: originalTransaction.type === 'deposit' ? -originalTransaction.netAmount : originalTransaction.netAmount,
-    status: 'completed',
-    method: 'Manuel',
-    reference: `REV-${originalTransaction.id}`,
-    date: new Date().toISOString(),
-    description: `Annulation de la transaction ${originalTransaction.id}`
-  };
+  isLoading.value = true;
   
-  // Ajouter la transaction au tableau
-  transactions.value.unshift(reversalTransaction);
-  
-  // Fermer la modale
+  try {
+    await adminTransactionsService.createReversal(selectedTransaction.value.id, rejectionReason.value);
+    
+    // Afficher une alerte de succès
+    showAlert.value = true;
+    alertType.value = 'success';
+    alertMessage.value = 'La transaction a été annulée avec succès.';
+    
+    // Recharger les données
+    await fetchTransactions();
+    await fetchTransactionStats();
+    
+    // Fermer les modals
   manualReversalModal.value = false;
+    if (transactionDetailsModal.value) {
+      closeDetailsModal();
+    }
+  } catch (err) {
+    console.error('Erreur lors de l\'annulation de la transaction:', err);
+    
+    showAlert.value = true;
+    alertType.value = 'error';
+    alertMessage.value = 'Erreur lors de l\'annulation de la transaction.';
+  } finally {
+    isLoading.value = false;
+    setTimeout(() => {
+      showAlert.value = false;
+    }, 3000);
+  }
+};
+
+const createManualTransaction = async (transactionData: Partial<Transaction>) => {
+  isLoading.value = true;
   
-  // Afficher un message de succès
+  try {
+    await adminTransactionsService.createTransaction(transactionData);
+    
+    // Afficher une alerte de succès
   showAlert.value = true;
   alertType.value = 'success';
-  alertMessage.value = `L'annulation ${newId} a été créée avec succès.`;
-  
-  // Masquer l'alerte après quelques secondes
+    alertMessage.value = 'La transaction a été créée avec succès.';
+    
+    // Recharger les données
+    await fetchTransactions();
+    await fetchTransactionStats();
+    
+    // Fermer le modal
+    closeManualTransactionModal();
+  } catch (err) {
+    console.error('Erreur lors de la création de la transaction:', err);
+    
+    showAlert.value = true;
+    alertType.value = 'error';
+    alertMessage.value = 'Erreur lors de la création de la transaction.';
+  } finally {
+    isLoading.value = false;
   setTimeout(() => {
     showAlert.value = false;
   }, 3000);
+  }
 };
 
 // Gestion de la pagination
-const goToPage = (page) => {
+const goToPage = (page: number) => {
   if (page < 1 || page > pagination.value.totalPages) return;
-  pagination.value.currentPage = page;
-  // Dans une implémentation réelle, vous rechargeriez les transactions avec le nouvel offset
+  
+  filters.value.page = page;
 };
 
 // Gestion du tri
-const toggleSort = (field) => {
-  if (sortBy.value === field) {
+const toggleSort = (field: string) => {
+  if (filters.value.sortBy === field) {
     // Inverser l'ordre si on clique sur le même champ
-    sortOrder.value = sortOrder.value === 'asc' ? 'desc' : 'asc';
+    filters.value.sortOrder = filters.value.sortOrder === 'asc' ? 'desc' : 'asc';
   } else {
-    // Changer le champ de tri et remettre l'ordre par défaut (desc)
-    sortBy.value = field;
-    sortOrder.value = 'desc';
+    // Sinon, trier par le nouveau champ en ordre descendant
+    filters.value.sortBy = field;
+    filters.value.sortOrder = 'desc';
   }
 };
 
 // Formattage des nombres
-const formatNumber = (num) => {
+const formatNumber = (num: number): string => {
   return new Intl.NumberFormat('fr-FR').format(num);
 };
 
 // Formattage des montants
-const formatAmount = (amount) => {
+const formatAmount = (amount: number): string => {
   return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'XAF' }).format(amount);
 };
 
 // Formattage des dates
-const formatDate = (dateString) => {
-  const options = { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' };
+const formatDate = (dateString: string): string => {
+  const options: Intl.DateTimeFormatOptions = { 
+    day: '2-digit', 
+    month: '2-digit', 
+    year: 'numeric', 
+    hour: '2-digit', 
+    minute: '2-digit' 
+  };
   return new Date(dateString).toLocaleDateString('fr-FR', options);
 };
 
 // Obtenir la couleur en fonction du type de transaction
-const getTypeColor = (type) => {
+const getTypeColor = (type: string): string => {
   const colors = {
     deposit: 'bg-green-100 text-green-800',
     withdrawal: 'bg-blue-100 text-blue-800',
     duel_win: 'bg-purple-100 text-purple-800',
     duel_loss: 'bg-red-100 text-red-800',
     commission: 'bg-yellow-100 text-yellow-800',
-    refund: 'bg-gray-100 text-gray-800',
-    reversal: 'bg-indigo-100 text-indigo-800'
+    refund: 'bg-indigo-100 text-indigo-800',
+    reversal: 'bg-orange-100 text-orange-800'
   };
   
-  return colors[type] || 'bg-gray-100 text-gray-800';
+  return colors[type as keyof typeof colors] || 'bg-gray-100 text-gray-800';
 };
 
 // Obtenir la couleur en fonction du statut de la transaction
-const getStatusColor = (status) => {
+const getStatusColor = (status: string): string => {
   const colors = {
     completed: 'bg-green-100 text-green-800',
     pending: 'bg-yellow-100 text-yellow-800',
     failed: 'bg-red-100 text-red-800'
   };
   
-  return colors[status] || 'bg-gray-100 text-gray-800';
+  return colors[status as keyof typeof colors] || 'bg-gray-100 text-gray-800';
 };
 
 // Obtenir le texte descriptif pour le type de transaction
-const getTypeLabel = (type) => {
+const getTypeLabel = (type: string): string => {
   const labels = {
     deposit: 'Dépôt',
     withdrawal: 'Retrait',
@@ -498,259 +417,278 @@ const getTypeLabel = (type) => {
     reversal: 'Annulation'
   };
   
-  return labels[type] || type;
+  return labels[type as keyof typeof labels] || type;
 };
 
 // Obtenir le texte descriptif pour le statut de la transaction
-const getStatusLabel = (status) => {
+const getStatusLabel = (status: string): string => {
   const labels = {
     completed: 'Complété',
     pending: 'En attente',
     failed: 'Échoué'
   };
   
-  return labels[status] || status;
+  return labels[status as keyof typeof labels] || status;
 };
 
 // Obtenir l'icône pour le type de transaction
-const getTypeIcon = (type) => {
+const getTypeIcon = (type: string) => {
   const icons = {
     deposit: CreditCard,
     withdrawal: Wallet,
-    duel_win: DollarSign,
-    duel_loss: DollarSign,
+    duel_win: Award,
+    duel_loss: Award,
     commission: DollarSign,
-    refund: CreditCard,
-    reversal: Wallet
+    refund: Wallet,
+    reversal: RefreshCw
   };
   
-  return icons[type] || DollarSign;
+  return icons[type as keyof typeof icons] || DollarSign;
 };
 </script>
 
 <template>
+  <div class="p-8">
+    <!-- En-tête avec titre et actions -->
+    <div class="flex flex-col md:flex-row md:items-center justify-between mb-8">
   <div>
-    <h1 class="text-2xl font-heading text-gray-800 mb-6">Gestion des transactions</h1>
+        <h1 class="text-3xl font-bold text-white mb-2">Gestion des Transactions</h1>
+        <p class="text-gray-400">Gérez toutes les transactions de votre plateforme</p>
+      </div>
+      
+      <div class="flex space-x-3 mt-4 md:mt-0">
+        <BaseButton 
+          variant="outline" 
+          @click="fetchTransactions"
+          :disabled="isLoading"
+        >
+          <RefreshCw class="w-5 h-5 mr-2" :class="{ 'animate-spin': isLoading }" />
+          Actualiser
+        </BaseButton>
+        
+        <BaseButton 
+          variant="primary" 
+          @click="openManualTransactionModal"
+        >
+          <Plus class="w-5 h-5 mr-2" />
+          Nouvelle transaction
+        </BaseButton>
+      </div>
+    </div>
     
-    <!-- Alerte de notification -->
+    <!-- Alerte -->
     <BaseAlert 
       v-if="showAlert" 
       :type="alertType"
-      dismissible
       class="mb-6"
+      dismissible
+      @close="showAlert = false"
     >
       {{ alertMessage }}
     </BaseAlert>
     
-    <!-- Statistiques des transactions -->
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-      <div class="bg-white rounded-lg shadow p-6">
-        <div class="flex items-center mb-4">
-          <div class="p-3 rounded-full bg-green-100 mr-4">
-            <CreditCard class="w-6 h-6 text-green-600" />
+    <!-- Cartes de statistiques -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      <div class="bg-primary-dark border border-gray-700 rounded-lg p-6">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-lg font-medium text-white">Total des transactions</h3>
+          <div class="bg-secondary/20 rounded-full p-2">
+            <FileText class="w-5 h-5 text-secondary" />
           </div>
-          <div>
-            <h3 class="text-lg font-medium text-gray-800">Dépôts</h3>
-            <div class="flex items-center">
-              <span class="text-green-600 text-sm mr-1">↑ {{ transactionStats.totalDeposits.growth }}%</span>
-              <span class="text-gray-500 text-sm">ce mois</span>
             </div>
-          </div>
-        </div>
-        <div class="text-3xl font-bold text-gray-800 mb-1">
-          {{ formatAmount(transactionStats.totalDeposits.amount) }}
-        </div>
-        <div class="text-sm text-gray-500">
-          {{ formatNumber(transactionStats.totalDeposits.count) }} transactions
+        <p class="text-3xl font-bold text-white">{{ transactionStats ? formatNumber(transactionStats.totalTransactions) : '...' }}</p>
+        <div class="flex justify-between mt-4 text-sm">
+          <span class="text-green-500">{{ transactionStats ? formatNumber(transactionStats.completedTransactions) : '0' }} complétées</span>
+          <span class="text-yellow-500">{{ transactionStats ? formatNumber(transactionStats.pendingTransactions) : '0' }} en attente</span>
         </div>
       </div>
       
-      <div class="bg-white rounded-lg shadow p-6">
-        <div class="flex items-center mb-4">
-          <div class="p-3 rounded-full bg-blue-100 mr-4">
-            <Wallet class="w-6 h-6 text-blue-600" />
+      <div class="bg-primary-dark border border-gray-700 rounded-lg p-6">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-lg font-medium text-white">Dépôts</h3>
+          <div class="bg-green-500/20 rounded-full p-2">
+            <CreditCard class="w-5 h-5 text-green-500" />
           </div>
-          <div>
-            <h3 class="text-lg font-medium text-gray-800">Retraits</h3>
-            <div class="flex items-center">
-              <span class="text-blue-600 text-sm mr-1">↑ {{ transactionStats.totalWithdrawals.growth }}%</span>
-              <span class="text-gray-500 text-sm">ce mois</span>
             </div>
-          </div>
-        </div>
-        <div class="text-3xl font-bold text-gray-800 mb-1">
-          {{ formatAmount(transactionStats.totalWithdrawals.amount) }}
-        </div>
-        <div class="text-sm text-gray-500">
-          {{ formatNumber(transactionStats.totalWithdrawals.count) }} transactions
+        <p class="text-3xl font-bold text-white">{{ transactionStats ? formatAmount(transactionStats.depositAmount) : '...' }}</p>
+        <div class="mt-4 text-sm text-gray-400">
+          <span>Total des dépôts approuvés</span>
         </div>
       </div>
       
-      <div class="bg-white rounded-lg shadow p-6">
-        <div class="flex items-center mb-4">
-          <div class="p-3 rounded-full bg-purple-100 mr-4">
-            <DollarSign class="w-6 h-6 text-purple-600" />
+      <div class="bg-primary-dark border border-gray-700 rounded-lg p-6">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-lg font-medium text-white">Retraits</h3>
+          <div class="bg-indigo-500/20 rounded-full p-2">
+            <Wallet class="w-5 h-5 text-indigo-500" />
           </div>
-          <div>
-            <h3 class="text-lg font-medium text-gray-800">Commissions</h3>
-            <div class="flex items-center">
-              <span class="text-purple-600 text-sm mr-1">↑ {{ transactionStats.totalCommissions.growth }}%</span>
-              <span class="text-gray-500 text-sm">ce mois</span>
             </div>
+        <p class="text-3xl font-bold text-white">{{ transactionStats ? formatAmount(transactionStats.withdrawalAmount) : '...' }}</p>
+        <div class="mt-4 text-sm text-gray-400">
+          <span>Total des retraits approuvés</span>
           </div>
         </div>
-        <div class="text-3xl font-bold text-gray-800 mb-1">
-          {{ formatAmount(transactionStats.totalCommissions.amount) }}
+      
+      <div class="bg-primary-dark border border-gray-700 rounded-lg p-6">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-lg font-medium text-white">Solde net</h3>
+          <div class="bg-purple-500/20 rounded-full p-2">
+            <DollarSign class="w-5 h-5 text-purple-500" />
         </div>
-        <div class="text-sm text-gray-500">
-          {{ formatNumber(transactionStats.totalCommissions.count) }} transactions
         </div>
+        <p class="text-3xl font-bold text-white">{{ transactionStats ? formatAmount(transactionStats.totalAmount) : '...' }}</p>
+        <div class="mt-4 text-sm text-gray-400">
+          <span>Dépôts - Retraits</span>
       </div>
     </div>
-    
-    <!-- Filtres et recherche -->
-    <div class="bg-white rounded-lg shadow p-6 mb-6">
-      <div class="flex flex-col md:flex-row md:items-center space-y-4 md:space-y-0 md:space-x-4">
-        <!-- Recherche -->
-        <div class="relative flex-grow">
-          <input
-            v-model="searchQuery"
-            type="text"
-            placeholder="Rechercher une transaction..."
-            class="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-md focus:ring-2 focus:ring-secondary focus:border-secondary"
-          />
-          <Search class="w-5 h-5 text-gray-400 absolute left-3 top-2.5" />
         </div>
         
-        <!-- Filtres -->
-        <div class="flex space-x-2">
-          <div class="relative">
-            <select
-              v-model="statusFilter"
-              class="pl-10 pr-4 py-2 border border-gray-300 rounded-md appearance-none focus:ring-2 focus:ring-secondary focus:border-secondary bg-white"
-            >
-              <option value="all">Tous les statuts</option>
-              <option value="completed">Complétés</option>
-              <option value="pending">En attente</option>
-              <option value="failed">Échoués</option>
-            </select>
-            <Filter class="w-5 h-5 text-gray-400 absolute left-3 top-2.5" />
+    <!-- Recherche et filtres -->
+    <div class="flex flex-col md:flex-row md:items-center justify-between mb-6">
+      <div class="w-full md:w-96 mb-4 md:mb-0">
+        <BaseInput
+          v-model="searchQuery"
+          placeholder="Rechercher par nom d'utilisateur..."
+          class="w-full"
+        >
+          <template #before>
+            <Search class="w-5 h-5 text-gray-500" />
+          </template>
+        </BaseInput>
           </div>
           
-          <div class="relative">
-            <select
-              v-model="typeFilter"
-              class="pl-10 pr-4 py-2 border border-gray-300 rounded-md appearance-none focus:ring-2 focus:ring-secondary focus:border-secondary bg-white"
-            >
-              <option value="all">Tous les types</option>
-              <option value="deposit">Dépôts</option>
-              <option value="withdrawal">Retraits</option>
-              <option value="duel_win">Gains de duel</option>
-              <option value="duel_loss">Pertes de duel</option>
-              <option value="commission">Commissions</option>
-              <option value="refund">Remboursements</option>
-            </select>
-            <Filter class="w-5 h-5 text-gray-400 absolute left-3 top-2.5" />
-          </div>
-          
-          <button 
-            class="bg-primary hover:bg-primary-dark text-white py-2 px-4 rounded-md flex items-center text-sm"
-            @click="openManualTransactionModal"
-          >
-            <span class="hidden md:inline">Transaction manuelle</span>
-            <span class="md:hidden">+ Transaction</span>
-          </button>
-        </div>
-      </div>
-      
-      <!-- Filtres supplémentaires -->
-      <div class="mt-4 pt-4 border-t border-gray-100 flex flex-col md:flex-row md:items-center space-y-4 md:space-y-0 md:space-x-4">
-        <div class="flex items-center">
-          <Calendar class="w-5 h-5 text-gray-400 mr-2" />
-          <span class="text-sm text-gray-500 mr-2">Période :</span>
-          <input
-            v-model="dateRange.from"
-            type="date"
-            class="border border-gray-300 rounded-md px-2 py-1 text-sm w-36 focus:ring-2 focus:ring-secondary focus:border-secondary"
-          />
-          <span class="mx-2">-</span>
-          <input
-            v-model="dateRange.to"
-            type="date"
-            class="border border-gray-300 rounded-md px-2 py-1 text-sm w-36 focus:ring-2 focus:ring-secondary focus:border-secondary"
-          />
-        </div>
+      <div class="flex space-x-3">
+        <BaseSelect
+          v-model="filters.status"
+          :options="transactionStatuses"
+          class="w-48"
+        />
         
-        <!-- Informations sur les transactions en attente -->
-        <div class="flex-grow md:text-right">
-          <span class="text-sm text-yellow-600 font-medium mr-4">
-            {{ transactionStats.pendingWithdrawals }} retraits en attente
-          </span>
-          <span class="text-sm text-red-600 font-medium">
-            {{ transactionStats.failedTransactions }} transactions échouées
-          </span>
-        </div>
+        <BaseSelect
+          v-model="filters.type"
+          :options="transactionTypes"
+          class="w-48"
+        />
+        
+        <BaseButton 
+          variant="outline" 
+          @click="filterModal = true"
+          title="Filtres avancés"
+        >
+          <Filter class="w-5 h-5" />
+        </BaseButton>
       </div>
     </div>
     
     <!-- Tableau des transactions -->
-    <div class="bg-white rounded-lg shadow overflow-hidden">
+    <div class="bg-primary-dark border border-gray-700 rounded-lg overflow-hidden">
       <div class="overflow-x-auto">
-        <table class="min-w-full divide-y divide-gray-200">
-          <thead class="bg-gray-50">
+        <table class="min-w-full divide-y divide-gray-700">
+          <thead class="bg-primary">
             <tr>
-              <th scope="col" class="px-6 py-3 text-left">
-                <div class="flex items-center text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer" @click="toggleSort('id')">
-                  ID Transaction
-                  <ArrowUpDown class="w-4 h-4 ml-1" />
-                </div>
+              <th 
+                class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:text-white"
+                @click="toggleSort('id')"
+              >
+                ID
+                <span v-if="filters.sortBy === 'id'">
+                  {{ filters.sortOrder === 'asc' ? '↑' : '↓' }}
+                </span>
               </th>
-              <th scope="col" class="px-6 py-3 text-left">
-                <div class="flex items-center text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer" @click="toggleSort('username')">
+              <th 
+                class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:text-white"
+                @click="toggleSort('username')"
+              >
                   Utilisateur
-                  <ArrowUpDown class="w-4 h-4 ml-1" />
-                </div>
+                <span v-if="filters.sortBy === 'username'">
+                  {{ filters.sortOrder === 'asc' ? '↑' : '↓' }}
+                </span>
               </th>
-              <th scope="col" class="px-6 py-3 text-left">
-                <div class="text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Type
-                </div>
+              <th 
+                class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:text-white"
+                @click="toggleSort('type')"
+              >
+                Type
+                <span v-if="filters.sortBy === 'type'">
+                  {{ filters.sortOrder === 'asc' ? '↑' : '↓' }}
+                </span>
               </th>
-              <th scope="col" class="px-6 py-3 text-left">
-                <div class="flex items-center text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer" @click="toggleSort('amount')">
+              <th 
+                class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:text-white"
+                @click="toggleSort('amount')"
+              >
                   Montant
-                  <ArrowUpDown class="w-4 h-4 ml-1" />
-                </div>
+                <span v-if="filters.sortBy === 'amount'">
+                  {{ filters.sortOrder === 'asc' ? '↑' : '↓' }}
+                </span>
               </th>
-              <th scope="col" class="px-6 py-3 text-left">
-                <div class="text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th 
+                class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:text-white"
+                @click="toggleSort('status')"
+              >
                   Statut
-                </div>
+                <span v-if="filters.sortBy === 'status'">
+                  {{ filters.sortOrder === 'asc' ? '↑' : '↓' }}
+                </span>
               </th>
-              <th scope="col" class="px-6 py-3 text-left">
-                <div class="flex items-center text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer" @click="toggleSort('date')">
-                  Date
-                  <ArrowUpDown class="w-4 h-4 ml-1" />
-                </div>
+              <th 
+                class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:text-white"
+                @click="toggleSort('date')"
+              >
+                Date
+                <span v-if="filters.sortBy === 'date'">
+                  {{ filters.sortOrder === 'asc' ? '↑' : '↓' }}
+                </span>
               </th>
-              <th scope="col" class="px-6 py-3 text-left">
-                <div class="text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th class="px-6 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">
                   Actions
-                </div>
               </th>
             </tr>
           </thead>
-          <tbody class="bg-white divide-y divide-gray-200">
-            <tr v-for="transaction in filteredTransactions" :key="transaction.id" class="hover:bg-gray-50">
-              <td class="px-6 py-4 whitespace-nowrap">
-                <div class="text-sm font-medium text-gray-900">{{ transaction.id }}</div>
-                <div class="text-xs text-gray-500">{{ transaction.reference }}</div>
+          
+          <tbody class="bg-primary-dark divide-y divide-gray-700">
+            <tr v-if="isLoading" class="bg-primary-dark">
+              <td colspan="7" class="px-6 py-12 text-center text-gray-400">
+                <RefreshCw class="w-8 h-8 animate-spin mx-auto mb-4" />
+                Chargement des transactions...
               </td>
-              <td class="px-6 py-4 whitespace-nowrap">
-                <div class="text-sm font-medium text-gray-900">{{ transaction.username }}</div>
-                <div class="text-xs text-gray-500">ID: {{ transaction.userId }}</div>
+            </tr>
+            
+            <tr v-else-if="error" class="bg-primary-dark">
+              <td colspan="7" class="px-6 py-12 text-center text-red-500">
+                <AlertCircle class="w-8 h-8 mx-auto mb-4" />
+                {{ error }}
+                <BaseButton 
+                  variant="outline" 
+                  class="mt-4 mx-auto"
+                  @click="fetchTransactions"
+                >
+                  <RefreshCw class="w-4 h-4 mr-2" />
+                  Réessayer
+                </BaseButton>
               </td>
-              <td class="px-6 py-4 whitespace-nowrap">
+            </tr>
+            
+            <tr v-else-if="transactions.length === 0" class="bg-primary-dark">
+              <td colspan="7" class="px-6 py-12 text-center text-gray-400">
+                <FileText class="w-8 h-8 mx-auto mb-4" />
+                Aucune transaction trouvée
+              </td>
+            </tr>
+            
+            <tr 
+              v-for="transaction in transactions" 
+              :key="transaction.id"
+              class="hover:bg-primary transition-colors duration-150 cursor-pointer"
+              @click="viewTransactionDetails(transaction)"
+            >
+              <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-white">
+                {{ transaction.id }}
+              </td>
+              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                {{ transaction.username }}
+              </td>
+              <td class="px-6 py-4 whitespace-nowrap text-sm">
                 <span 
                   class="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full"
                   :class="getTypeColor(transaction.type)"
@@ -758,20 +696,15 @@ const getTypeIcon = (type) => {
                   {{ getTypeLabel(transaction.type) }}
                 </span>
               </td>
-              <td class="px-6 py-4 whitespace-nowrap">
-                <div 
-                  class="text-sm font-medium"
+              <td class="px-6 py-4 whitespace-nowrap text-sm font-medium"
                   :class="{
-                    'text-green-600': transaction.netAmount > 0,
-                    'text-red-600': transaction.netAmount < 0,
-                    'text-gray-800': transaction.netAmount === 0
+                  'text-green-500': transaction.netAmount > 0,
+                  'text-red-500': transaction.netAmount < 0
                   }"
                 >
-                  {{ formatAmount(transaction.amount) }}
-                </div>
-                <div class="text-xs text-gray-500">Frais: {{ formatAmount(transaction.fee) }}</div>
+                {{ formatAmount(Math.abs(transaction.netAmount)) }}
               </td>
-              <td class="px-6 py-4 whitespace-nowrap">
+              <td class="px-6 py-4 whitespace-nowrap text-sm">
                 <span 
                   class="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full"
                   :class="getStatusColor(transaction.status)"
@@ -779,55 +712,48 @@ const getTypeIcon = (type) => {
                   {{ getStatusLabel(transaction.status) }}
                 </span>
               </td>
-              <td class="px-6 py-4 whitespace-nowrap">
-                <div class="text-sm text-gray-900">{{ formatDate(transaction.date) }}</div>
+              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                {{ formatDate(transaction.date) }}
               </td>
-              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                <div class="flex space-x-2">
-                  <button 
-                    class="text-blue-600 hover:text-blue-900" 
-                    @click="viewTransactionDetails(transaction)"
-                    title="Voir détails"
-                  >
-                    <Eye class="w-4 h-4" />
-                  </button>
-                  
-                  <button 
-                    v-if="transaction.status === 'completed'"
-                    class="text-green-600 hover:text-green-900" 
-                    @click="downloadReceipt(transaction.id)"
-                    title="Télécharger reçu"
-                  >
-                    <FileText class="w-4 h-4" />
-                  </button>
-                  
-                  <button 
+              <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2" @click.stop>
+                <BaseButton 
                     v-if="transaction.status === 'pending'"
-                    class="text-green-600 hover:text-green-900" 
+                  size="xs" 
+                  variant="success"
                     @click="approveTransaction(transaction.id)"
                     title="Approuver"
                   >
-                    <Check class="w-4 h-4" />
-                  </button>
+                  <CheckCircle class="w-4 h-4" />
+                </BaseButton>
                   
-                  <button 
+                <BaseButton 
                     v-if="transaction.status === 'pending'"
-                    class="text-red-600 hover:text-red-900" 
+                  size="xs" 
+                  variant="danger"
                     @click="rejectTransaction(transaction.id)"
                     title="Rejeter"
                   >
-                    <X class="w-4 h-4" />
-                  </button>
-                  
-                  <button 
-                    v-if="transaction.status === 'completed' && (transaction.type === 'deposit' || transaction.type === 'withdrawal')"
-                    class="text-yellow-600 hover:text-yellow-900" 
-                    @click="openManualReversalModal(transaction)"
-                    title="Annuler transaction"
-                  >
-                    <AlertCircle class="w-4 h-4" />
-                  </button>
-                </div>
+                  <XCircle class="w-4 h-4" />
+                </BaseButton>
+                
+                <BaseButton 
+                  v-if="transaction.status === 'completed'"
+                  size="xs" 
+                  variant="outline"
+                  @click="downloadReceipt(transaction.id)"
+                  title="Télécharger le reçu"
+                >
+                  <Download class="w-4 h-4" />
+                </BaseButton>
+                
+                <BaseButton 
+                  size="xs" 
+                  variant="outline"
+                  @click="viewTransactionDetails(transaction)"
+                  title="Voir les détails"
+                >
+                  <MoreHorizontal class="w-4 h-4" />
+                </BaseButton>
               </td>
             </tr>
           </tbody>
@@ -835,273 +761,280 @@ const getTypeIcon = (type) => {
       </div>
       
       <!-- Pagination -->
-      <div class="px-6 py-4 border-t border-gray-200 flex items-center justify-between">
-        <div class="text-sm text-gray-500">
-          Affichage de <span class="font-medium">{{ (pagination.currentPage - 1) * pagination.perPage + 1 }}</span> à <span class="font-medium">{{ Math.min(pagination.currentPage * pagination.perPage, pagination.totalTransactions) }}</span> sur <span class="font-medium">{{ pagination.totalTransactions }}</span> transactions
+      <div class="px-6 py-4 flex items-center justify-between border-t border-gray-700">
+        <div class="text-sm text-gray-400">
+          Affichage de 
+          <span class="font-medium text-white">{{ transactions.length }}</span> 
+          sur 
+          <span class="font-medium text-white">{{ pagination.totalItems }}</span> 
+          transactions
         </div>
         
-        <div class="flex space-x-1">
-          <button 
-            class="px-3 py-1 border border-gray-300 rounded-md text-sm text-gray-700 hover:bg-gray-50"
-            :disabled="pagination.currentPage === 1"
+        <div class="flex space-x-2">
+          <BaseButton 
+            size="sm" 
+            variant="outline"
             @click="goToPage(pagination.currentPage - 1)"
+            :disabled="pagination.currentPage <= 1"
           >
-            Précédent
-          </button>
+            <ChevronLeft class="w-4 h-4" />
+          </BaseButton>
           
-          <button 
+          <BaseButton 
             v-for="page in Math.min(5, pagination.totalPages)" 
             :key="page"
-            class="px-3 py-1 border rounded-md text-sm"
-            :class="pagination.currentPage === page ? 'bg-primary text-white border-primary' : 'text-gray-700 border-gray-300 hover:bg-gray-50'"
+            size="sm"
+            :variant="pagination.currentPage === page ? 'primary' : 'outline'"
             @click="goToPage(page)"
           >
             {{ page }}
-          </button>
+          </BaseButton>
           
-          <button 
-            class="px-3 py-1 border border-gray-300 rounded-md text-sm text-gray-700 hover:bg-gray-50"
-            :disabled="pagination.currentPage === pagination.totalPages"
+          <BaseButton 
+            size="sm" 
+            variant="outline"
             @click="goToPage(pagination.currentPage + 1)"
+            :disabled="pagination.currentPage >= pagination.totalPages"
           >
-            Suivant
-          </button>
+            <ChevronRight class="w-4 h-4" />
+          </BaseButton>
         </div>
       </div>
     </div>
     
     <!-- Modal de détails de transaction -->
-    <BaseModal
-      v-model="transactionDetailsModal"
-      title="Détails de la transaction"
-      size="lg"
-    >
-      <div v-if="selectedTransaction">
-        <div class="bg-gray-50 p-6 rounded-lg mb-6">
-          <div class="flex items-center justify-between mb-6">
-            <div>
-              <h3 class="text-lg font-bold text-gray-800 mb-1">{{ selectedTransaction.id }}</h3>
-              <p class="text-sm text-gray-500">Référence: {{ selectedTransaction.reference }}</p>
-            </div>
+   <!-- Modal de détails de transaction -->
+<div v-if="transactionDetailsModal && selectedTransaction" class="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 overflow-y-auto">
+  <div class="bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] overflow-auto">
+    <!-- En-tête du modal - reste inchangé -->
+    <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center sticky top-0 bg-white z-10">
+      <h2 class="text-xl font-bold text-gray-900">Détails de la transaction</h2>
+      <button 
+        @click="closeDetailsModal"
+        class="text-gray-500 hover:text-gray-700 transition-colors"
+      >
+        <X class="w-6 h-6" />
+      </button>
+    </div>
+    
+    <!-- Contenu du modal -->
+    <div class="p-6">
+      <!-- Informations de base - reste inchangé -->
+      <div class="flex items-center justify-between mb-6">
+        <div>
+          <h3 class="text-lg font-bold text-gray-800 mb-1">{{ selectedTransaction.id }}</h3>
+          <p class="text-sm text-gray-500">Référence: {{ selectedTransaction.reference }}</p>
+        </div>
+        <span 
+          class="px-3 py-1 inline-flex text-sm leading-5 font-semibold rounded-full"
+          :class="getStatusColor(selectedTransaction.status)"
+        >
+          {{ getStatusLabel(selectedTransaction.status) }}
+        </span>
+      </div>
+      
+      <!-- Grille des informations -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+        <div>
+          <p class="text-sm text-gray-500 mb-1">Utilisateur</p>
+          <p class="text-base font-medium text-gray-800">{{ selectedTransaction.username }}</p>
+          <p class="text-sm text-gray-500">ID: {{ selectedTransaction.userId }}</p>
+        </div>
+        
+        <div>
+          <p class="text-sm text-gray-500 mb-1">Date et heure</p>
+          <p class="text-base text-gray-800">{{ formatDate(selectedTransaction.date) }}</p>
+        </div>
+        
+        <div>
+          <p class="text-sm text-gray-500 mb-1">Type</p>
+          <div class="flex items-center">
             <span 
-              class="px-3 py-1 inline-flex text-sm leading-5 font-semibold rounded-full"
-              :class="getStatusColor(selectedTransaction.status)"
+              class="p-1 rounded-full mr-2"
+              :class="getTypeColor(selectedTransaction.type).replace('text-', 'bg-').replace('100', '200')"
             >
-              {{ getStatusLabel(selectedTransaction.status) }}
+              <component :is="getTypeIcon(selectedTransaction.type)" class="w-4 h-4" />
             </span>
-          </div>
-          
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <p class="text-sm text-gray-500 mb-1">Utilisateur</p>
-              <p class="text-base font-medium text-gray-800">{{ selectedTransaction.username }}</p>
-              <p class="text-sm text-gray-500">ID: {{ selectedTransaction.userId }}</p>
-            </div>
-            
-            <div>
-              <p class="text-sm text-gray-500 mb-1">Date et heure</p>
-              <p class="text-base text-gray-800">{{ formatDate(selectedTransaction.date) }}</p>
-            </div>
-            
-            <div>
-              <p class="text-sm text-gray-500 mb-1">Type</p>
-              <div class="flex items-center">
-                <span 
-                  class="p-1 rounded-full mr-2"
-                  :class="getTypeColor(selectedTransaction.type).replace('text-', 'bg-').replace('100', '200')"
-                >
-                  <component :is="getTypeIcon(selectedTransaction.type)" class="w-4 h-4" />
-                </span>
-                <span 
-                  class="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full"
-                  :class="getTypeColor(selectedTransaction.type)"
-                >
-                  {{ getTypeLabel(selectedTransaction.type) }}
-                </span>
-              </div>
-            </div>
-            
-            <div>
-              <p class="text-sm text-gray-500 mb-1">Méthode</p>
-              <p class="text-base text-gray-800">{{ selectedTransaction.method }}</p>
-            </div>
-          </div>
-        </div>
-        
-        <div class="mb-6">
-          <h4 class="text-lg font-medium text-gray-800 mb-4">Détails financiers</h4>
-          
-          <div class="bg-gray-50 p-4 rounded-lg">
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <p class="text-sm text-gray-500 mb-1">Montant</p>
-                <p class="text-xl font-bold text-gray-800">{{ formatAmount(selectedTransaction.amount) }}</p>
-              </div>
-              
-              <div>
-                <p class="text-sm text-gray-500 mb-1">Frais</p>
-                <p class="text-xl font-medium text-gray-800">{{ formatAmount(selectedTransaction.fee) }}</p>
-              </div>
-              
-              <div>
-                <p class="text-sm text-gray-500 mb-1">Montant net</p>
-                <p 
-                  class="text-xl font-bold"
-                  :class="{
-                    'text-green-600': selectedTransaction.netAmount > 0,
-                    'text-red-600': selectedTransaction.netAmount < 0,
-                    'text-gray-800': selectedTransaction.netAmount === 0
-                  }"
-                >
-                  {{ formatAmount(Math.abs(selectedTransaction.netAmount)) }}
-                  {{ selectedTransaction.netAmount > 0 ? '(crédit)' : selectedTransaction.netAmount < 0 ? '(débit)' : '' }}
-                </p>
-              </div>
-            </div>
-            
-            <div class="mt-4 pt-4 border-t border-gray-200">
-              <p class="text-sm text-gray-500 mb-1">Description</p>
-              <p class="text-base text-gray-800">{{ selectedTransaction.description }}</p>
-            </div>
-          </div>
-        </div>
-        
-        <div class="flex justify-between items-center">
-          <div>
-            <p class="text-sm text-gray-500">Transaction créée le {{ formatDate(selectedTransaction.date) }}</p>
-            <p v-if="selectedTransaction.status === 'completed'" class="text-sm text-gray-500">
-              Complétée le {{ formatDate(selectedTransaction.date) }}
-            </p>
-          </div>
-          
-          <div class="flex space-x-2">
-            <BaseButton 
-              v-if="selectedTransaction.status === 'completed'"
-              variant="outline" 
-              class="flex items-center"
-              @click="downloadReceipt(selectedTransaction.id)"
+            <span 
+              class="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full"
+              :class="getTypeColor(selectedTransaction.type)"
             >
-              <Download class="w-4 h-4 mr-2" />
-              Télécharger reçu
-            </BaseButton>
-            
-            <BaseButton 
-              v-if="selectedTransaction.status === 'completed' && (selectedTransaction.type === 'deposit' || selectedTransaction.type === 'withdrawal')"
-              variant="warning" 
-              class="flex items-center"
-              @click="openManualReversalModal(selectedTransaction)"
-            >
-              <AlertCircle class="w-4 h-4 mr-2" />
-              Annuler
-            </BaseButton>
+              {{ getTypeLabel(selectedTransaction.type) }}
+            </span>
           </div>
         </div>
       </div>
       
-      <template #footer>
-        <div class="flex justify-end">
-          <BaseButton @click="transactionDetailsModal = false">
-            Fermer
-          </BaseButton>
+      <!-- NOUVELLE SECTION: Détails de paiement -->
+      <div v-if="selectedTransaction.payment_details" class="bg-gray-50 rounded-lg p-4 mb-6">
+        <h4 class="text-lg font-medium text-gray-800 mb-4">Détails du paiement</h4>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <!-- Détails pour mobile money -->
+          <div v-if="selectedTransaction.payment_details.mobile_number" class="border-l-4 border-indigo-500 pl-3">
+            <p class="text-sm text-gray-500 mb-1">Numéro de téléphone</p>
+            <p class="text-base font-medium text-gray-800">{{ selectedTransaction.payment_details.mobile_number }}</p>
+          </div>
+          
+          <div v-if="selectedTransaction.payment_details.mobile_operator" class="border-l-4 border-indigo-500 pl-3">
+            <p class="text-sm text-gray-500 mb-1">Opérateur</p>
+            <p class="text-base font-medium text-gray-800">{{ selectedTransaction.payment_details.mobile_operator }}</p>
+          </div>
+          
+          <!-- Détails pour carte bancaire -->
+          <div v-if="selectedTransaction.payment_details.card_number" class="border-l-4 border-green-500 pl-3">
+            <p class="text-sm text-gray-500 mb-1">Numéro de carte</p>
+            <p class="text-base font-medium text-gray-800">**** **** **** {{ selectedTransaction.payment_details.card_number }}</p>
+          </div>
+          
+          <div v-if="selectedTransaction.payment_details.card_expiry_month && selectedTransaction.payment_details.card_expiry_year" class="border-l-4 border-green-500 pl-3">
+            <p class="text-sm text-gray-500 mb-1">Date d'expiration</p>
+            <p class="text-base font-medium text-gray-800">{{ selectedTransaction.payment_details.card_expiry_month }}/{{ selectedTransaction.payment_details.card_expiry_year }}</p>
+          </div>
+          
+          <!-- Détails pour virement bancaire -->
+          <div v-if="selectedTransaction.payment_details.bank_name" class="border-l-4 border-blue-500 pl-3">
+            <p class="text-sm text-gray-500 mb-1">Banque</p>
+            <p class="text-base font-medium text-gray-800">{{ selectedTransaction.payment_details.bank_name }}</p>
+          </div>
+          
+          <div v-if="selectedTransaction.payment_details.account_number" class="border-l-4 border-blue-500 pl-3">
+            <p class="text-sm text-gray-500 mb-1">Numéro de compte</p>
+            <p class="text-base font-medium text-gray-800">{{ selectedTransaction.payment_details.account_number }}</p>
+          </div>
+          
+          <div v-if="selectedTransaction.payment_details.account_name" class="border-l-4 border-blue-500 pl-3">
+            <p class="text-sm text-gray-500 mb-1">Titulaire du compte</p>
+            <p class="text-base font-medium text-gray-800">{{ selectedTransaction.payment_details.account_name }}</p>
+          </div>
         </div>
-      </template>
-    </BaseModal>
+        
+        <!-- Affichage formaté si disponible -->
+        <div v-if="selectedTransaction.payment_details_display" class="mt-4 pt-4 border-t border-gray-200">
+          <p class="text-sm text-gray-500 mb-2">Résumé des détails</p>
+          <p class="text-base text-gray-800">{{ selectedTransaction.payment_details_display }}</p>
+        </div>
+      </div>
+      
+      <!-- Section détails financiers - reste inchangé -->
+      <div class="bg-gray-50 rounded-lg p-4 mb-6">
+        <h4 class="text-lg font-medium text-gray-800 mb-4">Détails financiers</h4>
+        
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div>
+            <p class="text-sm text-gray-500 mb-1">Montant</p>
+            <p class="text-xl font-bold text-gray-800">{{ formatAmount(selectedTransaction.amount) }}</p>
+          </div>
+          
+          <div>
+            <p class="text-sm text-gray-500 mb-1">Frais</p>
+            <p class="text-xl font-medium text-gray-800">{{ formatAmount(selectedTransaction.fee) }}</p>
+          </div>
+          
+          <div>
+            <p class="text-sm text-gray-500 mb-1">Montant net</p>
+            <p 
+              class="text-xl font-bold"
+              :class="{
+                'text-green-600': selectedTransaction.netAmount > 0,
+                'text-red-600': selectedTransaction.netAmount < 0,
+                'text-gray-800': selectedTransaction.netAmount === 0
+              }"
+            >
+              {{ formatAmount(Math.abs(selectedTransaction.netAmount)) }}
+              {{ selectedTransaction.netAmount > 0 ? '(crédit)' : selectedTransaction.netAmount < 0 ? '(débit)' : '' }}
+            </p>
+          </div>
+        </div>
+        
+        <div class="mt-4 pt-4 border-t border-gray-200">
+          <p class="text-sm text-gray-500 mb-1">Description</p>
+          <p class="text-base text-gray-800">{{ selectedTransaction.description }}</p>
+        </div>
+      </div>
+    </div>
     
-    <!-- Modal de transaction manuelle -->
-    <BaseModal
-      v-model="manualTransactionModal"
-      title="Créer une transaction manuelle"
-      size="md"
-    >
-      <div class="p-4 bg-yellow-50 border border-yellow-100 rounded-lg mb-6 flex items-start">
-        <AlertCircle class="w-5 h-5 text-yellow-600 mt-0.5 mr-2 flex-shrink-0" />
-        <p class="text-sm text-yellow-700">
-          Les transactions manuelles sont utilisées pour des ajustements administratifs et sont entièrement enregistrées dans les logs du système.
+    <!-- Pied de page - reste inchangé -->
+    <div class="px-6 pb-6 flex justify-between items-center">
+      <div>
+        <p class="text-sm text-gray-500">Transaction créée le {{ formatDate(selectedTransaction.date) }}</p>
+        <p v-if="selectedTransaction.status === 'completed'" class="text-sm text-gray-500">
+          Complétée le {{ formatDate(selectedTransaction.completedAt || selectedTransaction.date) }}
         </p>
       </div>
       
-      <div class="space-y-4">
-        <BaseInput
-          v-model="manualTransaction.username"
-          label="Nom d'utilisateur"
-          placeholder="Entrez le nom d'utilisateur"
-          required
-        />
+      <div class="flex space-x-2">
+        <!-- Boutons d'action - restent inchangés -->
+        <BaseButton 
+          v-if="selectedTransaction.status === 'completed'"
+          variant="outline" 
+          class="flex items-center"
+          @click="downloadReceipt(selectedTransaction.id)"
+        >
+          <Download class="w-4 h-4 mr-2" />
+          Télécharger reçu
+        </BaseButton>
         
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Type de transaction</label>
-          <div class="grid grid-cols-2 gap-4">
-            <button 
-              class="py-2 px-4 rounded-md text-center text-sm font-medium transition-colors"
-              :class="manualTransaction.type === 'deposit' ? 'bg-green-100 text-green-800 border border-green-300' : 'bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200'"
-              @click="manualTransaction.type = 'deposit'"
-            >
-              Ajout de crédits
-            </button>
-            <button 
-              class="py-2 px-4 rounded-md text-center text-sm font-medium transition-colors"
-              :class="manualTransaction.type === 'adjustment' ? 'bg-blue-100 text-blue-800 border border-blue-300' : 'bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200'"
-              @click="manualTransaction.type = 'adjustment'"
-            >
-              Ajustement
-            </button>
-          </div>
-        </div>
+        <BaseButton 
+          v-if="selectedTransaction.status === 'pending'"
+          variant="success" 
+          class="flex items-center"
+          @click="approveTransaction(selectedTransaction.id)"
+        >
+          <CheckCircle class="w-4 h-4 mr-2" />
+          Approuver
+        </BaseButton>
         
-        <BaseInput
-          v-model.number="manualTransaction.amount"
-          label="Montant (FCFA)"
-          type="number"
-          min="1"
-          required
-        />
+        <BaseButton 
+          v-if="selectedTransaction.status === 'pending'"
+          variant="danger" 
+          class="flex items-center"
+          @click="rejectTransaction(selectedTransaction.id)"
+        >
+          <XCircle class="w-4 h-4 mr-2" />
+          Rejeter
+        </BaseButton>
         
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Description</label>
-          <textarea
-            v-model="manualTransaction.description"
-            rows="3"
-            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-secondary focus:border-secondary"
-            placeholder="Motif de cette transaction manuelle..."
-            required
-          ></textarea>
-        </div>
-        
-        <BaseInput
-          v-model="manualTransaction.reference"
-          label="Référence externe (optionnel)"
-          placeholder="Ex: numéro de bordereau, identifiant externe..."
-        />
+        <BaseButton 
+          v-if="selectedTransaction.status === 'completed' && (selectedTransaction.type === 'deposit' || selectedTransaction.type === 'withdrawal')"
+          variant="warning" 
+          class="flex items-center"
+          @click="openManualReversalModal(selectedTransaction)"
+        >
+          <RefreshCw class="w-4 h-4 mr-2" />
+          Annuler
+        </BaseButton>
       </div>
-      
-      <template #footer>
-        <div class="flex justify-between">
-          <BaseButton
-            variant="outline"
-            @click="manualTransactionModal = false"
-          >
-            Annuler
-          </BaseButton>
-          
-          <BaseButton
-            variant="primary"
-            @click="createManualTransaction"
-            :disabled="!manualTransaction.username || !manualTransaction.amount || !manualTransaction.description"
-          >
-            Créer la transaction
-          </BaseButton>
-        </div>
-      </template>
-    </BaseModal>
+    </div>
+  </div>
+</div>
     
-    <!-- Modal d'annulation de transaction -->
-    <BaseModal
-      v-model="manualReversalModal"
-      title="Annuler une transaction"
-      size="md"
-    >
-      <div v-if="selectedTransaction">
-        <div class="p-4 bg-red-50 border border-red-100 rounded-lg mb-6 flex items-start">
+    <!-- Modal de création de transaction manuelle -->
+    <ManualTransactionForm
+      v-if="manualTransactionModal"
+      :is-open="manualTransactionModal"
+      :loading="isLoading"
+      @close="closeManualTransactionModal"
+      @submit="createManualTransaction"
+    />
+    
+    <!-- Modal d'annulation manuelle -->
+    <div v-if="manualReversalModal && selectedTransaction" class="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 overflow-y-auto">
+      <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-auto">
+        <!-- En-tête du modal -->
+        <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center sticky top-0 bg-white z-10">
+          <h2 class="text-xl font-bold text-gray-900">Annulation de transaction</h2>
+            <button 
+            @click="manualReversalModal = false"
+            class="text-gray-500 hover:text-gray-700 transition-colors"
+          >
+            <X class="w-6 h-6" />
+            </button>
+        </div>
+        
+        <!-- Contenu du modal -->
+        <div class="p-6">
+          <div class="bg-red-50 p-4 rounded-lg mb-6 flex items-start">
           <AlertCircle class="w-5 h-5 text-red-600 mt-0.5 mr-2 flex-shrink-0" />
           <p class="text-sm text-red-700">
             Vous êtes sur le point d'annuler la transaction <strong>{{ selectedTransaction.id }}</strong>. Cette action va créer une transaction inverse pour compenser les mouvements financiers. Cette opération ne peut pas être annulée.
@@ -1109,7 +1042,7 @@ const getTypeIcon = (type) => {
         </div>
         
         <div class="bg-gray-50 p-4 rounded-lg mb-6">
-          <h4 class="text-base font-medium text-gray-800 mb-2">Détails de la transaction à annuler</h4>
+            <h4 class="text-base font-medium text-gray-800 mb-4">Détails de la transaction à annuler</h4>
           
           <div class="grid grid-cols-2 gap-4 mb-4">
             <div>
@@ -1139,14 +1072,10 @@ const getTypeIcon = (type) => {
           </div>
         </div>
         
-        <div class="bg-gray-50 p-4 rounded-lg mb-4">
-          <h4 class="text-base font-medium text-gray-800 mb-2">Résumé de l'annulation</h4>
-          
-          <p class="text-sm text-gray-600 mb-4">
-            Cette opération va entraîner les effets suivants:
-          </p>
-          
-          <ul class="space-y-2 text-sm text-gray-600">
+          <div class="bg-gray-50 p-4 rounded-lg mb-6">
+            <h4 class="text-base font-medium text-gray-800 mb-4">Effets de l'annulation</h4>
+            
+            <ul class="space-y-2 text-sm">
             <li class="flex items-start">
               <span class="text-red-500 mr-2">•</span>
               <span>
@@ -1162,16 +1091,16 @@ const getTypeIcon = (type) => {
             </li>
             <li class="flex items-start">
               <span class="text-red-500 mr-2">•</span>
-              <span>Ajout d'une note dans les logs système</span>
+                <span>Envoi d'une notification à l'utilisateur</span>
             </li>
           </ul>
         </div>
       </div>
       
-      <template #footer>
-        <div class="flex justify-between">
+        <div class="px-6 py-4 border-t border-gray-200 flex justify-end">
           <BaseButton
             variant="outline"
+            class="mr-2"
             @click="manualReversalModal = false"
           >
             Annuler
@@ -1179,12 +1108,90 @@ const getTypeIcon = (type) => {
           
           <BaseButton
             variant="danger"
-            @click="createReversal"
+            :disabled="isLoading"
+            @click="handleManualReversal"
           >
-            Confirmer l'annulation
+            {{ isLoading ? 'Traitement...' : 'Confirmer l\'annulation' }}
           </BaseButton>
         </div>
-      </template>
-    </BaseModal>
+      </div>
+    </div>
+    
+    <!-- Modal de filtres avancés -->
+    <div v-if="filterModal" class="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
+      <div class="bg-white rounded-lg shadow-xl max-w-md w-full">
+        <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+          <h3 class="text-lg font-medium text-gray-900">Filtres avancés</h3>
+          <button 
+            @click="filterModal = false"
+            class="text-gray-400 hover:text-gray-500"
+          >
+            <X class="w-5 h-5" />
+          </button>
+        </div>
+        
+        <div class="p-6 space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Montant minimum</label>
+            <BaseInput 
+              v-model="filters.minAmount"
+              type="number"
+              placeholder="0"
+            />
+          </div>
+          
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Montant maximum</label>
+            <BaseInput 
+              v-model="filters.maxAmount"
+              type="number"
+              placeholder="100000"
+            />
+          </div>
+          
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Date de début</label>
+            <BaseInput 
+              v-model="filters.startDate"
+              type="date"
+            />
+          </div>
+          
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Date de fin</label>
+            <BaseInput 
+              v-model="filters.endDate"
+              type="date"
+            />
+          </div>
+          
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">ID Utilisateur</label>
+            <BaseInput 
+              v-model="filters.userId"
+              type="number"
+              placeholder="ID utilisateur"
+            />
+          </div>
+        </div>
+        
+        <div class="px-6 py-4 border-t border-gray-200 flex justify-end">
+          <BaseButton 
+            variant="outline" 
+            class="mr-2"
+            @click="filters = { page: 1, pageSize: 10, sortBy: 'date', sortOrder: 'desc' }"
+          >
+            Réinitialiser
+          </BaseButton>
+          
+          <BaseButton 
+            variant="primary"
+            @click="filterModal = false"
+          >
+            Appliquer
+          </BaseButton>
+        </div>
+      </div>
+    </div>
   </div>
 </template>

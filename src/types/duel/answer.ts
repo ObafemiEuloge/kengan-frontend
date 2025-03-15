@@ -3,5 +3,5 @@ export interface Answer {
     optionId: number;
     playerId: number;
     answerTime: number;
-    isCorrect?: boolean;
+    is_correct?: boolean;
 }

@@ -1,58 +1,65 @@
+// types/admin/question.ts
 
-  // src/types/admin/question.ts
-  export type QuestionType = 'text' | 'image' | 'audio' | 'video';
+export type QuestionType = 'text' | 'image' | 'audio' | 'video';
+export type QuestionDifficulty = 'easy' | 'medium' | 'hard';
 
-  export interface QuestionOption {
+export interface QuestionOption {
+  id: number;
+  text: string;
+  isCorrect: boolean;
+}
+
+export interface AdminQuestion {
+  id: number;
+  text: string;
+  type: QuestionType;
+  categoryId: number;
+  difficulty: QuestionDifficulty;
+  timeLimit: number;
+  active: boolean;
+  options: QuestionOption[];
+  image?: string | File;
+  audio?: string | File;
+  video?: string | File;
+  usageCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface QuestionCategory {
+  id: number;
+  name: string;
+  description: string;
+  questionCount: number;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface QuestionFilters {
+  search: string;
+  type: QuestionType | '';
+  categoryId: number | null;
+  difficulty: QuestionDifficulty | '';
+  active: boolean | null;
+}
+
+export interface QuestionStats {
+  totalQuestions: number;
+  totalCategories: number;
+  questionsPerType: Record<QuestionType, number>;
+  questionsPerCategory: Record<string, number>;
+  questionsPerDifficulty: Record<QuestionDifficulty, number>;
+  topUsedQuestions: {
     id: number;
     text: string;
-    isCorrect: boolean;
-  }
-  
-  export interface AdminQuestion {
-    id: number;
-    text: string;
-    type: QuestionType;
-    mediaUrl?: string; // URL de l'image, audio ou vidéo si applicable
-    options: QuestionOption[];
-    categoryId: number;
-    difficulty: 'easy' | 'medium' | 'hard';
-    timeLimit: number; // en secondes
-    active: boolean;
-    createdAt: string;
-    updatedAt: string;
-    usageCount: number; // nombre de fois que la question a été utilisée
-  }
-  
-  export interface QuestionCategory {
-    id: number;
-    name: string;
-    description: string;
-    questionCount: number;
-    active: boolean;
-    createdAt: string;
-    updatedAt: string;
-  }
-  
-  export interface QuestionStats {
-    totalQuestions: number;
-    totalCategories: number;
-    questionsPerType: Record<QuestionType, number>;
-    questionsPerCategory: Record<number, number>;
-    questionsPerDifficulty: Record<string, number>;
-    topUsedQuestions: AdminQuestion[];
-  }
-  
-  export interface QuestionFilters {
-    search: string;
-    type: QuestionType | '';
-    categoryId: number | null;
-    difficulty: 'easy' | 'medium' | 'hard' | '';
-    active: boolean | null;
-  }
-  
-  export interface ImportResult {
-    success: number;
-    failed: number;
-    totalProcessed: number;
-    errors: string[];
-  }
+    usage_count: number;
+  }[];
+}
+
+export interface ImportResult {
+  success: number;
+  failed: number;
+  totalProcessed?: number;
+  errors: string[];
+}

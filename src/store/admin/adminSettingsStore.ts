@@ -28,7 +28,7 @@ interface SystemConfig {
   registrationEnabled: boolean;
   demoModeEnabled: boolean;
   duelSettings: {
-    defaultQuestionCount: number;
+    defaultquestion_count: number;
     timePerQuestion: number;
     minStake: number;
     maxStake: number;

@@ -135,7 +135,6 @@ api.interceptors.response.use(
     } else if (error.message) {
       errorMessage = error.message;
     }
-    
     const status = error.response?.status;
     
     return Promise.reject({ 

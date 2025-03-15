@@ -19,7 +19,7 @@ const systemConfig = ref({
   registrationEnabled: true,
   demoModeEnabled: true,
   duelSettings: {
-    defaultQuestionCount: 10,
+    defaultquestion_count: 10,
     timePerQuestion: 15, // seconds
     minStake: 1000,
     maxStake: 10000,
@@ -252,7 +252,7 @@ const timeZones = [
               <span class="text-sm text-gray-600 w-64">Nombre de questions par défaut :</span>
               <input 
                 type="number" 
-                v-model="systemConfig.duelSettings.defaultQuestionCount" 
+                v-model="systemConfig.duelSettings.defaultquestion_count" 
                 min="5" 
                 max="20"
                 class="border rounded px-3 py-1 w-24 text-gray-700 focus:outline-none focus:ring-2 focus:ring-secondary"

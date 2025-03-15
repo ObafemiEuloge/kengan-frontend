@@ -25,7 +25,7 @@ export const mockSecuritySettings = {
     registrationEnabled: true,
     demoModeEnabled: true,
     duelSettings: {
-      defaultQuestionCount: 10,
+      defaultquestion_count: 10,
       timePerQuestion: 15, // seconds
       minStake: 1000,
       maxStake: 10000,

@@ -111,17 +111,17 @@ export const duelService = {
     return api.get('/duels/history');
   },
   
-  async submitAnswer(duelId: number, questionId: number, optionId: number, answerTime: number): Promise<{ playerId: number; isCorrect: boolean }> {
+  async submitAnswer(duelId: number, questionId: number, optionId: number, answerTime: number): Promise<{ playerId: number; is_correct: boolean }> {
     // En mode développement, simuler la soumission d'une réponse
     if (import.meta.env.DEV) {
       await delay(300); // Simuler une latence
       
       // Simuler une réponse correcte 70% du temps
-      const isCorrect = Math.random() < 0.7;
+      const is_correct = Math.random() < 0.7;
       
       return {
         playerId: 123, // ID utilisateur mockée
-        isCorrect
+        is_correct
       };
     }
     

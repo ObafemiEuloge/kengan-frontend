@@ -19,15 +19,21 @@ import type { QuestionFilters, QuestionType } from '../../../types/admin/questio
 import BaseButton from '../../ui/BaseButton.vue';
 
 const router = useRouter();
+
 const questionsStore = useAdminQuestionsStore();
 
-// Récupérer les données au chargement
+// Récupérer les données au chargement (une seule fois)
 onMounted(async () => {
   if (questionsStore.categories.length === 0) {
     await questionsStore.fetchCategories();
   }
+  // Ne pas surveiller les changements ici
   await questionsStore.fetchQuestions();
 });
+
+// Filtrer les changements - problème critique
+// Utiliser une variable distincte pour éviter la récursion
+const localFilters = ref({...questionsStore.filters});
 
 // Variables pour les filtres
 const filters = ref<QuestionFilters>({
@@ -60,17 +66,19 @@ const activeOptions = ref([
   { value: false, label: 'Inactives' }
 ]);
 
-// Observer les changements de filtres
-watch(filters, (newFilters) => {
+// Observer les changements de filtres LOCAUX (pas du store)
+watch(localFilters, (newFilters) => {
   questionsStore.setFilters(newFilters);
   questionsStore.fetchQuestions();
 }, { deep: true });
 
 // Observer les changements dans le store
 watch(() => questionsStore.filters, (newFilters) => {
-  filters.value = { ...newFilters };
+  // Attention: ne mettez à jour les filtres locaux que s'ils diffèrent réellement
+  if (JSON.stringify(localFilters.value) !== JSON.stringify(newFilters)) {
+    localFilters.value = { ...newFilters };
+  }
 }, { deep: true, immediate: true });
-
 // Réinitialiser les filtres
 const resetFilters = () => {
   questionsStore.resetFilters();
@@ -345,7 +353,7 @@ const formatQuestionText = (text: string, maxLength = 50) => {
               <!-- Catégorie -->
               <td class="px-6 py-4 whitespace-nowrap">
                 <div class="text-sm text-gray-700">
-                  {{ questionsStore.getCategoryName(question.categoryId) }}
+                  {{ questionsStore.getCategoryName(question.category.id) }}
                 </div>
               </td>
               
@@ -372,7 +380,7 @@ const formatQuestionText = (text: string, maxLength = 50) => {
               <!-- Utilisation -->
               <td class="px-6 py-4 whitespace-nowrap">
                 <div class="text-sm text-gray-700">
-                  {{ question.usageCount }} fois
+                  {{ question.usage_count }} fois
                 </div>
               </td>
               

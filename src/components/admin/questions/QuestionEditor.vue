@@ -1,531 +1,662 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue';
-import { useRouter } from 'vue-router';
-import { PlusCircle, Trash2, Image, Music, Video, FileText, Save, ArrowLeft, X } from 'lucide-vue-next';
+import { useRouter, useRoute } from 'vue-router';
+import { 
+  Save, 
+  X, 
+  Image as ImageIcon, 
+  FileText, 
+  Music, 
+  Video,
+  Plus,
+  Trash2
+} from 'lucide-vue-next';
 import { useAdminQuestionsStore } from '../../../store/admin/adminQuestionsStore';
-import type { AdminQuestion, QuestionOption, QuestionType } from '../../../types/admin/question';
+import type { AdminQuestion, QuestionOption } from '../../../types/admin/question';
 import BaseButton from '../../ui/BaseButton.vue';
 
-const props = defineProps<{
-  questionId?: number;
-  isEditMode?: boolean;
-}>();
-
 const router = useRouter();
+const route = useRoute();
 const questionsStore = useAdminQuestionsStore();
 
-// État du formulaire
-const questionForm = ref<{
-  text: string;
-  type: QuestionType;
-  mediaUrl: string;
-  categoryId: number | null;
-  difficulty: 'easy' | 'medium' | 'hard';
-  timeLimit: number;
-  active: boolean;
-  options: QuestionOption[];
-}>({
+// Détermine si on est en mode création ou édition
+const isEditMode = computed(() => route.params.id !== undefined);
+const questionId = computed(() => isEditMode.value ? parseInt(route.params.id as string) : null);
+
+// État pour la question et les erreurs
+const question = ref<Partial<AdminQuestion>>({
   text: '',
   type: 'text',
-  mediaUrl: '',
   categoryId: null,
   difficulty: 'medium',
   timeLimit: 15,
   active: true,
   options: [
-    { id: 1, text: '', isCorrect: false },
+    { id: 1, text: '', isCorrect: true },
     { id: 2, text: '', isCorrect: false },
     { id: 3, text: '', isCorrect: false },
     { id: 4, text: '', isCorrect: false }
   ]
 });
 
-// Prévisualisation du média
-const mediaPreview = ref<string | null>(null);
+const errors = ref<Record<string, string>>({});
+const loading = ref(false);
+const saveSuccess = ref(false);
 
-// Options pour les sélecteurs
-const questionTypes = [
-  { value: 'text', label: 'Texte' },
-  { value: 'image', label: 'Image' },
-  { value: 'audio', label: 'Audio' },
-  { value: 'video', label: 'Vidéo' }
-];
+// Gestion de l'upload de fichiers
+const imageFile = ref<File | null>(null);
+const audioFile = ref<File | null>(null);
+const videoFile = ref<File | null>(null);
 
-const difficultyOptions = [
-  { value: 'easy', label: 'Facile' },
-  { value: 'medium', label: 'Moyen' },
-  { value: 'hard', label: 'Difficile' }
-];
+const imagePreview = ref<string | null>(null);
+const audioSource = ref<string | null>(null);
+const videoSource = ref<string | null>(null);
 
-const timeLimitOptions = [
-  { value: 10, label: '10 secondes' },
-  { value: 15, label: '15 secondes' },
-  { value: 20, label: '20 secondes' },
-  { value: 25, label: '25 secondes' },
-  { value: 30, label: '30 secondes' }
-];
-
-// Observer les changements de type pour réinitialiser mediaUrl si nécessaire
-watch(() => questionForm.value.type, (newType, oldType) => {
-  if (newType !== oldType) {
-    questionForm.value.mediaUrl = '';
-    mediaPreview.value = null;
+// Récupérer les catégories et la question si en mode édition
+onMounted(async () => {
+  await questionsStore.fetchCategories();
+  
+  if (isEditMode.value && questionId.value) {
+    loading.value = true;
+    try {
+      const loadedQuestion = await questionsStore.fetchQuestion(questionId.value);
+      if (loadedQuestion) {
+        question.value = { ...loadedQuestion };
+        
+        // Initialiser les aperçus médias si disponibles
+        if (loadedQuestion.image) {
+          imagePreview.value = loadedQuestion.image;
+        }
+        if (loadedQuestion.audio) {
+          audioSource.value = loadedQuestion.audio;
+        }
+        if (loadedQuestion.video) {
+          videoSource.value = loadedQuestion.video;
+        }
+      }
+    } catch (error) {
+      console.error('Error loading question:', error);
+    } finally {
+      loading.value = false;
+    }
   }
 });
 
-// Observer mediaUrl pour mettre à jour la prévisualisation
-watch(() => questionForm.value.mediaUrl, (newUrl) => {
-  if (newUrl) {
-    mediaPreview.value = newUrl;
-  } else {
-    mediaPreview.value = null;
-  }
+// Définir le titre de la page
+const pageTitle = computed(() => {
+  return isEditMode.value ? `Modification de la question #${questionId.value}` : 'Nouvelle question';
 });
 
-// Fonctions pour la gestion des options
+// Gestion des uploads de fichiers
+const handleImageUpload = (event: Event) => {
+  const input = event.target as HTMLInputElement;
+  if (input.files && input.files.length > 0) {
+    imageFile.value = input.files[0];
+    
+    // Créer un aperçu
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      imagePreview.value = e.target?.result as string;
+    };
+    reader.readAsDataURL(imageFile.value);
+    
+    // Mettre à jour le type de question si nécessaire
+    if (question.value.type === 'text') {
+      question.value.type = 'image';
+    }
+  }
+};
+
+const handleAudioUpload = (event: Event) => {
+  const input = event.target as HTMLInputElement;
+  if (input.files && input.files.length > 0) {
+    audioFile.value = input.files[0];
+    
+    // Créer une URL pour la lecture
+    if (audioSource.value) {
+      URL.revokeObjectURL(audioSource.value);
+    }
+    audioSource.value = URL.createObjectURL(audioFile.value);
+    
+    // Mettre à jour le type de question
+    question.value.type = 'audio';
+  }
+};
+
+const handleVideoUpload = (event: Event) => {
+  const input = event.target as HTMLInputElement;
+  if (input.files && input.files.length > 0) {
+    videoFile.value = input.files[0];
+    
+    // Créer une URL pour la lecture
+    if (videoSource.value) {
+      URL.revokeObjectURL(videoSource.value);
+    }
+    videoSource.value = URL.createObjectURL(videoFile.value);
+    
+    // Mettre à jour le type de question
+    question.value.type = 'video';
+  }
+};
+
+const clearImage = () => {
+  imageFile.value = null;
+  imagePreview.value = null;
+  
+  // Réinitialiser le type si nécessaire
+  if (question.value.type === 'image') {
+    question.value.type = 'text';
+  }
+};
+
+const clearAudio = () => {
+  audioFile.value = null;
+  if (audioSource.value && audioSource.value.startsWith('blob:')) {
+    URL.revokeObjectURL(audioSource.value);
+  }
+  audioSource.value = null;
+  
+  // Réinitialiser le type si nécessaire
+  if (question.value.type === 'audio') {
+    question.value.type = 'text';
+  }
+};
+
+const clearVideo = () => {
+  videoFile.value = null;
+  if (videoSource.value && videoSource.value.startsWith('blob:')) {
+    URL.revokeObjectURL(videoSource.value);
+  }
+  videoSource.value = null;
+  
+  // Réinitialiser le type si nécessaire
+  if (question.value.type === 'video') {
+    question.value.type = 'text';
+  }
+};
+
+// Gestion des options
+const setCorrectOption = (index: number) => {
+  if (question.value.options) {
+    question.value.options = question.value.options.map((option, i) => ({
+      ...option,
+      isCorrect: i === index
+    }));
+  }
+};
+
 const addOption = () => {
-  const newId = Math.max(0, ...questionForm.value.options.map(o => o.id)) + 1;
-  questionForm.value.options.push({
-    id: newId,
-    text: '',
-    isCorrect: false
-  });
-};
-
-const removeOption = (id: number) => {
-  questionForm.value.options = questionForm.value.options.filter(o => o.id !== id);
-  
-  // S'assurer qu'il reste au moins 2 options
-  if (questionForm.value.options.length < 2) {
-    addOption();
+  if (question.value.options && question.value.options.length < 8) {
+    const newId = Math.max(0, ...question.value.options.map(o => o.id ?? 0)) + 1;
+    question.value.options.push({
+      id: newId,
+      text: '',
+      isCorrect: false
+    });
   }
 };
 
-const setCorrectOption = (id: number) => {
-  questionForm.value.options.forEach(option => {
-    option.isCorrect = option.id === id;
-  });
+const removeOption = (index: number) => {
+  if (question.value.options && question.value.options.length > 2) {
+    // Si l'option à supprimer est correcte, définir la première option comme correcte
+    const isCorrect = question.value.options[index].isCorrect;
+    question.value.options.splice(index, 1);
+    
+    if (isCorrect && question.value.options.length > 0) {
+      question.value.options[0].isCorrect = true;
+    }
+  }
 };
 
-// Validation du formulaire
-const formErrors = ref<string[]>([]);
-
+// Validation
 const validateForm = (): boolean => {
-  formErrors.value = [];
+  errors.value = {};
   
-  if (!questionForm.value.text.trim()) {
-    formErrors.value.push('Le texte de la question est requis');
+  if (!question.value.text || question.value.text.trim() === '') {
+    errors.value.text = 'Le texte de la question est requis';
   }
   
-  if (questionForm.value.type !== 'text' && !questionForm.value.mediaUrl) {
-    formErrors.value.push(`L'URL du média est requise pour les questions de type ${questionForm.value.type}`);
+  if (!question.value.categoryId) {
+    errors.value.categoryId = 'La catégorie est requise';
   }
   
-  if (questionForm.value.categoryId === null) {
-    formErrors.value.push('La catégorie est requise');
+  // Vérifier que les options ont du texte
+  if (question.value.options) {
+    question.value.options.forEach((option, index) => {
+      if (!option.text || option.text.trim() === '') {
+        errors.value[`option${index}`] = `L'option ${index + 1} est requise`;
+      }
+    });
+    
+    // Vérifier qu'il y a une option correcte
+    const hasCorrectOption = question.value.options.some(option => option.isCorrect);
+    if (!hasCorrectOption) {
+      errors.value.options = 'Une option correcte doit être sélectionnée';
+    }
+  } else {
+    errors.value.options = 'Au moins deux options sont requises';
   }
   
-  // Vérifier les options
-  if (questionForm.value.options.length < 2) {
-    formErrors.value.push('Au moins 2 options sont requises');
+  // Vérifier le type et les fichiers associés
+  if (question.value.type === 'image' && !imagePreview.value && !imageFile.value) {
+    errors.value.image = 'Une image est requise pour ce type de question';
   }
   
-  const emptyOptions = questionForm.value.options.filter(o => !o.text.trim());
-  if (emptyOptions.length > 0) {
-    formErrors.value.push('Toutes les options doivent avoir un texte');
+  if (question.value.type === 'audio' && !audioSource.value && !audioFile.value) {
+    errors.value.audio = 'Un fichier audio est requis pour ce type de question';
   }
   
-  const correctOptions = questionForm.value.options.filter(o => o.isCorrect);
-  if (correctOptions.length !== 1) {
-    formErrors.value.push('Exactement une option doit être marquée comme correcte');
+  if (question.value.type === 'video' && !videoSource.value && !videoFile.value) {
+    errors.value.video = 'Un fichier vidéo est requis pour ce type de question';
   }
   
-  return formErrors.value.length === 0;
+  return Object.keys(errors.value).length === 0;
 };
 
 // Soumission du formulaire
-const isSubmitting = ref(false);
-
-const submitForm = async () => {
+const saveQuestion = async () => {
   if (!validateForm()) {
     return;
   }
   
-  isSubmitting.value = true;
+  loading.value = true;
+  saveSuccess.value = false;
   
   try {
-    if (props.isEditMode && props.questionId) {
-      // Mode édition
-      await questionsStore.updateQuestion(props.questionId, {
-        text: questionForm.value.text,
-        type: questionForm.value.type,
-        mediaUrl: questionForm.value.mediaUrl || undefined,
-        categoryId: questionForm.value.categoryId as number,
-        difficulty: questionForm.value.difficulty,
-        timeLimit: questionForm.value.timeLimit,
-        active: questionForm.value.active,
-        options: questionForm.value.options
-      });
-      
-      alert('Question mise à jour avec succès !');
-    } else {
-      // Mode création
-      await questionsStore.createQuestion({
-        text: questionForm.value.text,
-        type: questionForm.value.type,
-        mediaUrl: questionForm.value.mediaUrl || undefined,
-        categoryId: questionForm.value.categoryId as number,
-        difficulty: questionForm.value.difficulty,
-        timeLimit: questionForm.value.timeLimit,
-        active: questionForm.value.active,
-        options: questionForm.value.options
-      });
-      
-      alert('Question créée avec succès !');
+    const questionData = { ...question.value };
+    
+    // Ajouter les fichiers si présents
+    if (imageFile.value) {
+      questionData.image = imageFile.value;
+    }
+    if (audioFile.value) {
+      questionData.audio = audioFile.value;
+    }
+    if (videoFile.value) {
+      questionData.video = videoFile.value;
     }
     
-    // Rediriger vers la liste des questions
-    router.push('/admin/questions');
-  } catch (error) {
+    if (isEditMode.value && questionId.value) {
+      await questionsStore.updateQuestion(questionId.value, questionData);
+    } else {
+      await questionsStore.createQuestion(questionData as Omit<AdminQuestion, 'id' | 'createdAt' | 'updatedAt' | 'usage_count'>);
+    }
+    
+    saveSuccess.value = true;
+    
+    // Rediriger après un court délai
+    setTimeout(() => {
+      router.push('/admin/questions');
+    }, 1500);
+  } catch (error: any) {
     console.error('Error saving question:', error);
-    alert('Une erreur est survenue lors de l\'enregistrement de la question.');
+    if (error.details && typeof error.details === 'object') {
+      errors.value = error.details;
+    } else {
+      errors.value.general = error.message || 'Une erreur est survenue lors de l\'enregistrement';
+    }
   } finally {
-    isSubmitting.value = false;
+    loading.value = false;
   }
 };
 
-// Retour à la liste des questions
-const goBack = () => {
+const cancelEdit = () => {
   router.push('/admin/questions');
 };
-
-// Initialisation des catégories et de la question en mode édition
-onMounted(async () => {
-  // Charger les catégories
-  if (questionsStore.categories.length === 0) {
-    await questionsStore.fetchCategories();
-  }
-  
-  // En mode édition, charger la question existante
-  if (props.isEditMode && props.questionId) {
-    const question = await questionsStore.fetchQuestion(props.questionId);
-    
-    if (question) {
-      // Remplir le formulaire avec les données de la question
-      questionForm.value = {
-        text: question.text,
-        type: question.type,
-        mediaUrl: question.mediaUrl || '',
-        categoryId: question.categoryId,
-        difficulty: question.difficulty,
-        timeLimit: question.timeLimit,
-        active: question.active,
-        options: [...question.options]
-      };
-      
-      // Mettre à jour la prévisualisation du média
-      if (question.mediaUrl) {
-        mediaPreview.value = question.mediaUrl;
-      }
-    }
-  }
-});
-
-// Helper pour obtenir l'icône du type de question
-const getTypeIcon = (type: QuestionType) => {
-  switch (type) {
-    case 'image':
-      return Image;
-    case 'audio':
-      return Music;
-    case 'video':
-      return Video;
-    default:
-      return FileText;
-  }
-};
-
-// Helper pour déterminer si l'affichage de prévisualisation est disponible
-const canShowPreview = computed(() => {
-  if (!mediaPreview.value) return false;
-  
-  return (
-    (questionForm.value.type === 'image' && mediaPreview.value.match(/\.(jpeg|jpg|gif|png|webp)$/i)) ||
-    (questionForm.value.type === 'audio' && mediaPreview.value.match(/\.(mp3|wav|ogg)$/i)) ||
-    (questionForm.value.type === 'video' && mediaPreview.value.match(/\.(mp4|webm|ogg)$/i))
-  );
-});
 </script>
 
 <template>
-  <div class="bg-white rounded-lg shadow-sm p-6">
-    <!-- En-tête avec bouton de retour -->
+  <div>
     <div class="flex justify-between items-center mb-6">
-      <div class="flex items-center">
-        <button @click="goBack" class="text-gray-600 hover:text-gray-900 mr-2">
-          <ArrowLeft class="w-5 h-5" />
-        </button>
-        <h2 class="text-xl font-bold text-gray-800">
-          {{ isEditMode ? 'Modifier la question' : 'Créer une nouvelle question' }}
-        </h2>
-      </div>
+      <h2 class="text-2xl font-bold text-gray-800">{{ pageTitle }}</h2>
       
-      <BaseButton 
-        variant="primary" 
-        @click="submitForm"
-        :disabled="isSubmitting"
-        class="flex items-center"
-      >
-        <Save class="w-4 h-4 mr-1" />
-        {{ isSubmitting ? 'Enregistrement...' : 'Enregistrer' }}
-      </BaseButton>
-    </div>
-    
-    <!-- Affichage des erreurs de validation -->
-    <div v-if="formErrors.length > 0" class="mb-6 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
-      <p class="font-bold mb-1">Veuillez corriger les erreurs suivantes :</p>
-      <ul class="list-disc pl-5">
-        <li v-for="(error, index) in formErrors" :key="index" class="text-sm">
-          {{ error }}
-        </li>
-      </ul>
-    </div>
-    
-    <!-- Formulaire -->
-    <form @submit.prevent="submitForm">
-      <!-- Type de question et catégorie -->
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-        <!-- Type de question -->
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Type de question</label>
-          <div class="flex space-x-2">
-            <div 
-              v-for="type in questionTypes" 
-              :key="type.value"
-              class="flex-1"
-            >
-              <button
-                type="button"
-                class="w-full px-2 py-2 border rounded-md flex flex-col items-center justify-center transition-colors"
-                :class="questionForm.type === type.value 
-                  ? 'border-primary bg-primary bg-opacity-10 text-primary' 
-                  : 'border-gray-300 hover:bg-gray-50 text-gray-700'"
-                @click="questionForm.type = type.value as QuestionType"
-              >
-                <component :is="getTypeIcon(type.value as QuestionType)" class="w-5 h-5 mb-1" />
-                <span class="text-xs">{{ type.label }}</span>
-              </button>
-            </div>
-          </div>
-        </div>
-        
-        <!-- Catégorie -->
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Catégorie</label>
-          <select 
-            v-model="questionForm.categoryId"
-            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-          >
-            <option :value="null" disabled>Sélectionnez une catégorie</option>
-            <option 
-              v-for="category in questionsStore.getActiveCategories" 
-              :key="category.id" 
-              :value="category.id"
-            >
-              {{ category.name }}
-            </option>
-          </select>
-        </div>
-      </div>
-      
-      <!-- Texte de la question -->
-      <div class="mb-4">
-        <label class="block text-sm font-medium text-gray-700 mb-1">Texte de la question</label>
-        <textarea 
-          v-model="questionForm.text"
-          rows="3"
-          class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-          placeholder="Saisissez le texte de votre question..."
-        ></textarea>
-      </div>
-      
-      <!-- URL du média (si applicable) -->
-      <div v-if="questionForm.type !== 'text'" class="mb-4">
-        <label class="block text-sm font-medium text-gray-700 mb-1">
-          URL du {{ questionForm.type === 'image' ? 'image' : questionForm.type === 'audio' ? 'audio' : 'vidéo' }}
-        </label>
-        <div class="flex">
-          <input 
-            v-model="questionForm.mediaUrl"
-            type="text"
-            class="flex-1 px-3 py-2 border border-gray-300 rounded-l-md focus:outline-none focus:ring-2 focus:ring-primary"
-            :placeholder="`Entrez l'URL ${
-              questionForm.type === 'image' ? 'de l\'image' : 
-              questionForm.type === 'audio' ? 'du fichier audio' : 
-              'de la vidéo'
-            }`"
-          />
-          <button 
-            type="button"
-            class="px-3 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-r-md"
-            @click="questionForm.mediaUrl = ''"
-            v-if="questionForm.mediaUrl"
-          >
-            <X class="w-5 h-5" />
-          </button>
-        </div>
-        <p class="mt-1 text-sm text-gray-500">
-          Format recommandé: 
-          {{ questionForm.type === 'image' ? 'JPG, PNG, WebP' : 
-             questionForm.type === 'audio' ? 'MP3, WAV' : 
-             'MP4, WebM' }}
-        </p>
-        
-        <!-- Prévisualisation du média -->
-        <div v-if="mediaPreview && canShowPreview" class="mt-4 border border-gray-300 rounded-md p-2 max-w-md mx-auto">
-          <img 
-            v-if="questionForm.type === 'image'" 
-            :src="mediaPreview" 
-            alt="Prévisualisation" 
-            class="max-h-64 mx-auto rounded"
-          />
-          
-          <audio 
-            v-else-if="questionForm.type === 'audio'" 
-            :src="mediaPreview" 
-            controls 
-            class="w-full"
-          ></audio>
-          
-          <video 
-            v-else-if="questionForm.type === 'video'" 
-            :src="mediaPreview" 
-            controls 
-            class="max-h-64 mx-auto rounded"
-          ></video>
-        </div>
-      </div>
-      
-      <!-- Options de la question -->
-      <div class="mb-4">
-        <div class="flex justify-between items-center mb-2">
-          <label class="block text-sm font-medium text-gray-700">Options de réponse</label>
-          <button 
-            type="button"
-            @click="addOption"
-            class="text-primary hover:text-primary-dark flex items-center text-sm"
-          >
-            <PlusCircle class="w-4 h-4 mr-1" />
-            Ajouter une option
-          </button>
-        </div>
-        
-        <div 
-          v-for="option in questionForm.options" 
-          :key="option.id"
-          class="flex items-center mb-2"
-        >
-          <input 
-            type="radio" 
-            :checked="option.isCorrect"
-            @change="setCorrectOption(option.id)"
-            :id="`option_${option.id}`"
-            name="correctOption"
-            class="h-4 w-4 text-primary focus:ring-primary border-gray-300"
-          />
-          
-          <input 
-            v-model="option.text"
-            type="text"
-            :placeholder="`Option ${option.id}`"
-            class="ml-2 flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-          />
-          
-          <button 
-            type="button"
-            @click="removeOption(option.id)"
-            class="ml-2 text-red-500 hover:text-red-700"
-            :disabled="questionForm.options.length <= 2"
-            :class="{ 'opacity-50 cursor-not-allowed': questionForm.options.length <= 2 }"
-          >
-            <Trash2 class="w-5 h-5" />
-          </button>
-        </div>
-        
-        <p class="text-sm text-gray-500 mt-1">
-          Sélectionnez la bonne réponse en cochant le bouton radio correspondant.
-        </p>
-      </div>
-      
-      <!-- Paramètres supplémentaires -->
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-        <!-- Difficulté -->
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Difficulté</label>
-          <select 
-            v-model="questionForm.difficulty"
-            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-          >
-            <option 
-              v-for="option in difficultyOptions" 
-              :key="option.value" 
-              :value="option.value"
-            >
-              {{ option.label }}
-            </option>
-          </select>
-        </div>
-        
-        <!-- Temps limite -->
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Temps limite</label>
-          <select 
-            v-model="questionForm.timeLimit"
-            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-          >
-            <option 
-              v-for="option in timeLimitOptions" 
-              :key="option.value" 
-              :value="option.value"
-            >
-              {{ option.label }}
-            </option>
-          </select>
-        </div>
-        
-        <!-- Statut -->
-        <div class="flex items-center">
-          <input 
-            v-model="questionForm.active"
-            type="checkbox" 
-            id="active"
-            class="h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded"
-          />
-          <label for="active" class="ml-2 block text-sm text-gray-700">Question active</label>
-        </div>
-      </div>
-      
-      <!-- Boutons d'action -->
-      <div class="mt-6 flex justify-end">
+      <div class="flex space-x-2">
         <BaseButton 
-          type="button"
           variant="outline" 
-          @click="goBack"
-          class="mr-2"
+          @click="cancelEdit"
+          :disabled="loading"
         >
+          <X class="w-4 h-4 mr-1" />
           Annuler
         </BaseButton>
         
         <BaseButton 
-          type="submit"
-          variant="primary"
-          :disabled="isSubmitting"
-          class="flex items-center"
+          variant="primary" 
+          @click="saveQuestion"
+          :disabled="loading"
         >
           <Save class="w-4 h-4 mr-1" />
-          {{ isSubmitting ? 'Enregistrement...' : 'Enregistrer' }}
+          {{ loading ? 'Enregistrement...' : 'Enregistrer' }}
         </BaseButton>
       </div>
-    </form>
+    </div>
+    
+    <!-- Message de succès -->
+    <div v-if="saveSuccess" class="mb-6 bg-green-50 border border-green-500 text-green-700 px-4 py-3 rounded">
+      <p class="flex items-center">
+        <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+          <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+        </svg>
+        Question enregistrée avec succès! Redirection...
+      </p>
+    </div>
+    
+    <!-- Message d'erreur général -->
+    <div v-if="errors.general" class="mb-6 bg-red-50 border border-red-500 text-red-700 px-4 py-3 rounded">
+      <p class="flex items-center">
+        <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+          <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path>
+        </svg>
+        {{ errors.general }}
+      </p>
+    </div>
+    
+    <!-- Formulaire d'édition -->
+    <div class="bg-white rounded-lg shadow-sm p-6">
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Colonne gauche -->
+        <div class="space-y-6">
+          <!-- Texte de la question -->
+          <div>
+            <label for="question-text" class="block text-sm font-medium text-gray-700 mb-1">
+              Texte de la question <span class="text-red-600">*</span>
+            </label>
+            <textarea 
+              id="question-text" 
+              v-model="question.text"
+              rows="3"
+              class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+              :class="{ 'border-red-500': errors.text }"
+              placeholder="Entrez le texte de la question..."
+            ></textarea>
+            <p v-if="errors.text" class="mt-1 text-sm text-red-600">{{ errors.text }}</p>
+          </div>
+          
+          <!-- Catégorie -->
+          <div>
+            <label for="category" class="block text-sm font-medium text-gray-700 mb-1">
+              Catégorie <span class="text-red-600">*</span>
+            </label>
+            <select 
+              id="category" 
+              v-model="question.categoryId"
+              class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+              :class="{ 'border-red-500': errors.categoryId }"
+            >
+              <option :value="null" disabled>Sélectionnez une catégorie</option>
+              <option 
+                v-for="category in questionsStore.categories" 
+                :key="category.id" 
+                :value="category.id"
+              >
+                {{ category.name }}
+              </option>
+            </select>
+            <p v-if="errors.categoryId" class="mt-1 text-sm text-red-600">{{ errors.categoryId }}</p>
+          </div>
+          
+          <!-- Type de question et difficulté -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <!-- Type -->
+            <div>
+              <label for="type" class="block text-sm font-medium text-gray-700 mb-1">
+                Type de question
+              </label>
+              <select 
+                id="type" 
+                v-model="question.type"
+                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+              >
+                <option value="text">Texte uniquement</option>
+                <option value="image">Avec image</option>
+                <option value="audio">Avec audio</option>
+                <option value="video">Avec vidéo</option>
+              </select>
+            </div>
+            
+            <!-- Difficulté -->
+            <div>
+              <label for="difficulty" class="block text-sm font-medium text-gray-700 mb-1">
+                Niveau de difficulté
+              </label>
+              <select 
+                id="difficulty" 
+                v-model="question.difficulty"
+                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+              >
+                <option value="easy">Facile</option>
+                <option value="medium">Moyen</option>
+                <option value="hard">Difficile</option>
+              </select>
+            </div>
+          </div>
+          
+          <!-- Temps limite et statut -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <!-- Temps limite -->
+            <div>
+              <label for="time-limit" class="block text-sm font-medium text-gray-700 mb-1">
+                Temps limite (secondes)
+              </label>
+              <input 
+                id="time-limit" 
+                type="number" 
+                v-model="question.timeLimit"
+                min="5"
+                max="60"
+                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+              />
+            </div>
+            
+            <!-- Statut actif -->
+            <div class="flex items-center mt-6">
+              <input 
+                id="active" 
+                type="checkbox" 
+                v-model="question.active"
+                class="h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded"
+              />
+              <label for="active" class="ml-2 block text-sm text-gray-700">
+                Question active
+              </label>
+            </div>
+          </div>
+          
+          <!-- Media selon le type -->
+          <div v-if="question.type !== 'text'" class="border border-gray-200 rounded-md p-4">
+            <h3 class="text-md font-medium text-gray-700 mb-3 flex items-center">
+              <component :is="question.type === 'image' ? ImageIcon : question.type === 'audio' ? Music : Video" class="w-5 h-5 mr-2" />
+              Média ({{ question.type === 'image' ? 'Image' : question.type === 'audio' ? 'Audio' : 'Vidéo' }})
+            </h3>
+            
+            <!-- Upload d'image -->
+            <div v-if="question.type === 'image'">
+              <div v-if="imagePreview" class="mb-3">
+                <img :src="imagePreview" alt="Aperçu de l'image" class="max-h-64 rounded-md" />
+                <button 
+                  @click="clearImage" 
+                  class="text-red-600 hover:text-red-800 text-sm mt-2 flex items-center"
+                >
+                  <Trash2 class="w-4 h-4 mr-1" />
+                  Supprimer l'image
+                </button>
+              </div>
+              <div v-else>
+                <div class="flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md">
+                  <div class="space-y-1 text-center">
+                    <svg class="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48" aria-hidden="true">
+                      <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                    </svg>
+                    <div class="flex text-sm text-gray-600 justify-center">
+                      <label for="image-upload" class="relative cursor-pointer bg-white rounded-md font-medium text-primary hover:text-primary-dark focus-within:outline-none">
+                        <span>Téléverser une image</span>
+                        <input 
+                          id="image-upload" 
+                          name="image-upload" 
+                          type="file" 
+                          class="sr-only"
+                          accept="image/*"
+                          @change="handleImageUpload"
+                        />
+                      </label>
+                    </div>
+                    <p class="text-xs text-gray-500">
+                      PNG, JPG, GIF jusqu'à 2MB
+                    </p>
+                  </div>
+                </div>
+                <p v-if="errors.image" class="mt-1 text-sm text-red-600">{{ errors.image }}</p>
+              </div>
+            </div>
+            
+            <!-- Upload d'audio -->
+            <div v-if="question.type === 'audio'">
+              <div v-if="audioSource" class="mb-3">
+                <audio controls class="w-full">
+                  <source :src="audioSource" type="audio/mpeg">
+                  Votre navigateur ne supporte pas l'élément audio.
+                </audio>
+                <button 
+                  @click="clearAudio" 
+                  class="text-red-600 hover:text-red-800 text-sm mt-2 flex items-center"
+                >
+                  <Trash2 class="w-4 h-4 mr-1" />
+                  Supprimer l'audio
+                </button>
+              </div>
+              <div v-else>
+                <div class="flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md">
+                  <div class="space-y-1 text-center">
+                    <Music class="mx-auto h-12 w-12 text-gray-400" />
+                    <div class="flex text-sm text-gray-600 justify-center">
+                      <label for="audio-upload" class="relative cursor-pointer bg-white rounded-md font-medium text-primary hover:text-primary-dark focus-within:outline-none">
+                        <span>Téléverser un fichier audio</span>
+                        <input 
+                          id="audio-upload" 
+                          name="audio-upload" 
+                          type="file" 
+                          class="sr-only"
+                          accept="audio/*"
+                          @change="handleAudioUpload"
+                        />
+                      </label>
+                    </div>
+                    <p class="text-xs text-gray-500">
+                      MP3, WAV jusqu'à 5MB
+                    </p>
+                  </div>
+                </div>
+                <p v-if="errors.audio" class="mt-1 text-sm text-red-600">{{ errors.audio }}</p>
+              </div>
+            </div>
+            
+            <!-- Upload de vidéo -->
+            <div v-if="question.type === 'video'">
+              <div v-if="videoSource" class="mb-3">
+                <video controls class="w-full max-h-64">
+                  <source :src="videoSource" type="video/mp4">
+                  Votre navigateur ne supporte pas l'élément vidéo.
+                </video>
+                <button 
+                  @click="clearVideo" 
+                  class="text-red-600 hover:text-red-800 text-sm mt-2 flex items-center"
+                >
+                  <Trash2 class="w-4 h-4 mr-1" />
+                  Supprimer la vidéo
+                </button>
+              </div>
+              <div v-else>
+                <div class="flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md">
+                  <div class="space-y-1 text-center">
+                    <Video class="mx-auto h-12 w-12 text-gray-400" />
+                    <div class="flex text-sm text-gray-600 justify-center">
+                      <label for="video-upload" class="relative cursor-pointer bg-white rounded-md font-medium text-primary hover:text-primary-dark focus-within:outline-none">
+                        <span>Téléverser une vidéo</span>
+                        <input 
+                          id="video-upload" 
+                          name="video-upload" 
+                          type="file" 
+                          class="sr-only"
+                          accept="video/*"
+                          @change="handleVideoUpload"
+                        />
+                      </label>
+                    </div>
+                    <p class="text-xs text-gray-500">
+                      MP4, WebM jusqu'à 10MB
+                    </p>
+                  </div>
+                </div>
+                <p v-if="errors.video" class="mt-1 text-sm text-red-600">{{ errors.video }}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Colonne droite (options) -->
+        <div>
+          <div class="mb-4 flex justify-between items-center">
+            <h3 class="text-md font-medium text-gray-700">Options de réponse</h3>
+            <BaseButton 
+              variant="outline" 
+              size="sm" 
+              @click="addOption"
+              :disabled="question.options && question.options.length >= 8"
+              class="flex items-center"
+            >
+              <Plus class="w-4 h-4 mr-1" />
+              Ajouter une option
+            </BaseButton>
+          </div>
+          
+          <p v-if="errors.options" class="mb-2 text-sm text-red-600">{{ errors.options }}</p>
+          
+          <div class="space-y-4">
+            <div 
+              v-for="(option, index) in question.options" 
+              :key="index"
+              class="flex items-center space-x-3 p-3 border border-gray-200 rounded-md"
+              :class="{ 'bg-green-50 border-green-300': option.isCorrect }"
+            >
+              <div class="flex-shrink-0">
+                <input 
+                  :id="`option-correct-${index}`"
+                  type="radio" 
+                  :name="'correct-option'"
+                  :checked="option.isCorrect"
+                  @change="setCorrectOption(index)"
+                  class="h-4 w-4 text-primary focus:ring-primary border-gray-300"
+                />
+              </div>
+              <div class="flex-grow">
+                <input 
+                  type="text" 
+                  v-model="option.text"
+                  :placeholder="`Option ${index + 1}`"
+                  class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+                  :class="{ 'border-red-500': errors[`option${index}`] }"
+                />
+                <p v-if="errors[`option${index}`]" class="mt-1 text-sm text-red-600">{{ errors[`option${index}`] }}</p>
+              </div>
+              <div class="flex-shrink-0">
+                <button 
+                  @click="removeOption(index)"
+                  :disabled="question.options && question.options.length <= 2"
+                  class="text-red-600 hover:text-red-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Trash2 class="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+          </div>
+          
+          <div class="mt-4 text-sm text-gray-600">
+            <p>
+              <span class="font-medium">Note:</span> Sélectionnez le bouton radio à côté de l'option qui est la réponse correcte.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
